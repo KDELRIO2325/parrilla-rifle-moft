@@ -173,7 +173,6 @@ tr.canc td{color:var(--mut)}tr.canc td b{text-decoration:line-through}
  <div id="filters"></div>
  <div class="stitle">Referencia</div>
  <div class="refwrap"><input class="refin" id="fref" placeholder="Buscar referencia…"></div>
- <div class="snote hidden" id="sNoteIng">En esta pestaña el año se elige arriba (año calendario); el filtro “Año parrilla” no aplica.</div>
  <div class="sbtns"><button id="bReset">Restablecer</button><button class="pri" id="bAll">Ver todo</button></div>
 </aside>
 <main>
@@ -188,7 +187,7 @@ tr.canc td{color:var(--mut)}tr.canc td b{text-decoration:line-through}
 
  <!-- TAB 1: INFORME -->
  <section id="vInf">
-  <div class="topbar"><div><div class="crumb">Producción / Parrilla de proveedores</div><h1 id="infTitle">Carga por proveedor</h1><div class="desc">Unidades de la parrilla por proveedor, paquete, categoría y canal. Clic en cualquier elemento para filtrar · Ctrl/⌘+clic suma valores.</div></div>
+  <div class="topbar"><div><div class="crumb">Producción / Parrilla de proveedores</div><h1 id="infTitle">Carga por proveedor</h1></div>
   <div class="pills" id="infPills"></div></div>
   <div class="chips" id="chips"></div>
   <div class="card empty hidden" id="infEmpty"></div>
@@ -216,8 +215,8 @@ tr.canc td{color:var(--mut)}tr.canc td b{text-decoration:line-through}
 
  <!-- TAB 2: PARRILLA VS MES INGRESO -->
  <section id="vIng" class="hidden">
-  <div class="topbar"><div><div class="crumb">Producción / Presupuesto de ingreso</div><h1>Parrilla vs mes de ingreso</h1><div class="desc">Presupuesto de venta: el mes agrupa los paquetes -1 y -2 de ese mes. Presupuesto de ingreso: según el calendario de paquetes (política vigente: el paquete -1 ingresa el mes anterior).</div></div>
-  <div class="pills"><span class="pill dark">Año calendario <select id="ingYear"></select></span></div></div>
+  <div class="topbar"><div><div class="crumb">Producción / Presupuesto de ingreso</div><h1 id="ingTitle">Parrilla vs mes de ingreso</h1></div>
+  <div class="pills" id="ingPills"></div></div>
   <div class="chips" id="chips2"></div>
   <div id="ingNote"></div>
   <div class="kpis" id="kpis2"></div>
@@ -361,10 +360,13 @@ const fKey=f=>!f?"":f.t+":"+[...f.s].sort().join("|");
 function anioVigente(){const ys=[...new Set(S.D.map(r=>r[I.anio]))].sort();const y=String(new Date().getFullYear());return ys.includes(y)?y:ys.filter(x=>x<=y).pop()||ys[0];}
 function defaults(){const y=anioVigente();return{marca:null,anio:y?{t:"in",s:new Set([y])}:null,cat:{t:"ex",s:new Set(["Fragancias"])},est:{t:"ex",s:new Set(["CANCELADO"])}};}
 function reset(){DEF=defaults();DIMS.forEach(([k])=>F[k]=DEF[k]?{t:DEF[k].t,s:new Set(DEF[k].s)}:null);REF="";$("fref").value="";}
-const ignAnio=()=>S.tab=="ing";
-function rowsBase(skip){return S.D.filter(r=>(skip=="marca"||pass("marca",r[I.marca]))&&(ignAnio()||skip=="anio"||pass("anio",r[I.anio])));}
+function rowsBase(skip){return S.D.filter(r=>(skip=="marca"||pass("marca",r[I.marca]))&&(skip=="anio"||pass("anio",r[I.anio])));}
 function calcOpt(){const base=rowsBase();DIMS.forEach(([k])=>{const src=k=="marca"||k=="anio"?S.D:base;OPT[k]=sortVals(k,[...new Set(src.map(r=>r[I[k]]))]);});}
-function rows(opts={}){const q=REF.trim().toUpperCase();return S.D.filter(r=>DIMS.every(([k])=>(k=="anio"&&(opts.sinAnio))||pass(k,r[I[k]]))&&(!q||r[I.ref].includes(q)));}
+function rows(){const q=REF.trim().toUpperCase();return S.D.filter(r=>DIMS.every(([k])=>pass(k,r[I[k]]))&&(!q||r[I.ref].includes(q)));}
+/* Pastillas de marca / año / actualización, comunes a las dos pestañas de informe */
+function pillsHtml(){const on=k=>OPT[k].filter(v=>pass(k,v));const mk=on("marca"),yr=on("anio");
+ const ult=S.meta.filter(m=>mk.includes(m.marca)&&yr.includes(String(m.anio))).map(m=>m.actualizado_en).sort().pop();
+ return `<span class="pill">${esc(mk.length==OPT.marca.length?"Rifle + Moft":mk.join(" · ")||"Sin marca")}</span><span class="pill">${yr.length==1?"Parrilla "+yr[0]:yr.length?"Parrillas "+yr.join(" · "):"Sin año"}</span>${ult?`<span class="pill dark">Actualizado ${esc(fdt(ult))}</span>`:""}`;}
 function toggle(k,v,add){const cur=F[k];
  if(add){const s=new Set(cur&&cur.t=="in"?cur.s:[]);s.has(v)?s.delete(v):s.add(v);F[k]=s.size?{t:"in",s}:null;}
  else F[k]=(cur&&cur.t=="in"&&cur.s.size==1&&cur.s.has(v))?null:{t:"in",s:new Set([v])};render();}
@@ -385,9 +387,9 @@ function renderSide(){
  calcOpt();
  DIMS.forEach(([k])=>{const vals=OPT[k],n=vals.length,on=vals.filter(v=>pass(k,v));
   $("v_"+k).textContent=on.length==n?"Todas":on.length==0?"Ninguna":on.length==1?on[0]:on.length<=n/2?`${on.length} seleccionados`:`Todas menos ${n-on.length}`;
-  $("f_"+k).classList.toggle("act",active(k));$("f_"+k).classList.toggle("dis",k=="anio"&&ignAnio());});
+  $("f_"+k).classList.toggle("act",active(k));});
  /* Chips: solo filtros distintos a la vista por defecto (los de defecto no se muestran) */
- let ch="";DIMS.forEach(([k,lab])=>{if(k=="anio"&&ignAnio())return;if(fKey(F[k])==fKey(DEF[k]))return;if(!active(k))return;const vals=OPT[k],on=vals.filter(v=>pass(k,v)),ex=vals.filter(v=>!pass(k,v));
+ let ch="";DIMS.forEach(([k,lab])=>{if(fKey(F[k])==fKey(DEF[k]))return;if(!active(k))return;const vals=OPT[k],on=vals.filter(v=>pass(k,v)),ex=vals.filter(v=>!pass(k,v));
   const txt=on.length<=ex.length?on.join(", ")||"ninguno":"sin "+ex.join(", ");ch+=`<span class=chip data-c="${k}"><b>${lab}:</b> ${esc(txt.length>90?txt.slice(0,90)+"…":txt)}<i>✕</i></span>`;});
  if(REF.trim())ch+=`<span class=chip data-c="ref"><b>Ref:</b> ${esc(REF)}<i>✕</i></span>`;
  const box=S.tab=="ing"?$("chips2"):$("chips");$("chips").innerHTML="";$("chips2").innerHTML="";box.innerHTML=ch;
@@ -415,8 +417,7 @@ function renderInforme(){
  const R=rows(),T=R.reduce((s,r)=>s+r[I.u],0);const nref=new Set(R.map(r=>r[I.ref])).size;
  const on=k=>OPT[k].filter(v=>pass(k,v));const mk=on("marca"),yr=on("anio"),cl=on("col");
  $("infTitle").textContent="Carga por proveedor — "+(cl.length&&cl.length<OPT.col.length&&cl.length<=2?cl.join(", ")+" ":"")+(yr.length==1?yr[0]:yr.length?yr.join(" · "):"sin año");
- const ult=S.meta.filter(m=>mk.includes(m.marca)&&yr.includes(String(m.anio))).map(m=>m.actualizado_en).sort().pop();
- $("infPills").innerHTML=`<span class="pill">${esc(mk.length==OPT.marca.length?"Rifle + Moft":mk.join(" · ")||"Sin marca")}</span><span class="pill">${yr.length==1?"Año "+yr[0]:yr.length+" años"}</span>${ult?`<span class="pill dark">Actualizado ${esc(fdt(ult))}</span>`:""}`;
+ $("infPills").innerHTML=pillsHtml();
  const P=group(R,"prov");const realP=P.filter(g=>!["SIN PROVEEDOR ASIGNADO","CALZADO"].includes(g.v));const top3=P.slice(0,3).reduce((s,g)=>s+g.u,0);
  const sinp=(P.find(g=>g.v=="SIN PROVEEDOR ASIGNADO")||{u:0}).u;
  $("kpis").innerHTML=[["Unidades",fmt(T),"box"],["Referencias",fmt(nref),"tag"],["Proveedores",realP.length,"fac"],["Concentración top 3",pc(top3,T),"pie"],["Sin proveedor asignado",fmt(sinp)+" und","alert",sinp>0]]
@@ -452,38 +453,41 @@ $("bXls").onclick=()=>{const R=rows();const ws=XLSX.utils.aoa_to_sheet([["Marca"
  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Parrilla");XLSX.writeFile(wb,"Parrilla_filtrada_"+new Date().toISOString().slice(0,10)+".xlsx");};
 
 /* ══ TAB 2: PARRILLA VS MES INGRESO ═════════════════════ */
-function aniosIngreso(){const ys=new Set();S.D.forEach(r=>{ys.add(+r[I.anio]);});[...ys].forEach(y=>ys.add(y-1));
- return [...ys].filter(y=>S.D.some(r=>{const c=calDe(r[I.marca],r[I.anio],r[I.paq]);return c&&(c.anio_ingreso==y||+r[I.anio]==y);})).sort();}
+/* Línea de tiempo cronológica: usa el filtro "Año parrilla". Cada mes es año*12+mes, así el
+   paquete 1-1 de 2027 aparece en "Dic 26" antes de "Ene 27", y si se eligen varias parrillas,
+   Dic 26 suma lo que ingresa de la parrilla 2026 (12-2) y de la 2027 (1-1). */
 function renderIngreso(){
- const sel=$("ingYear");const ys=aniosIngreso();if(!ys.length){$("kpis2").innerHTML="";$("chartV").innerHTML=$("chartG").innerHTML=$("tIng").innerHTML='<div class="empty">Sin datos</div>';return;}
- let Y=+sel.value||+anioVigente();if(!ys.includes(Y))Y=ys.includes(+anioVigente())?+anioVigente():ys[ys.length-1];
- sel.innerHTML=ys.map(y=>`<option ${y==Y?"selected":""}>${y}</option>`).join("");
- const R=rows({sinAnio:true});const mk=OPT.marca.filter(v=>pass("marca",v));const multiM=new Set(R.map(r=>r[I.marca])).size>1;
- const V=Array(12).fill(0),G=Array(12).fill(0),vP=[...Array(12)].map(()=>new Map()),gP=[...Array(12)].map(()=>new Map()),fe=[...Array(12)].map(()=>new Set());let sinCal=0;const sinCalS=new Set();
- const etq=(r)=>(multiM?r[I.marca]+" ":"")+r[I.paq]+" ("+r[I.anio]+")";
- R.forEach(r=>{const c=calDe(r[I.marca],r[I.anio],r[I.paq]);if(!c){if(+r[I.anio]==Y||+r[I.anio]==Y+1){sinCal+=r[I.u];sinCalS.add(r[I.marca]+" "+r[I.anio]+" "+r[I.col]);}return;}const u=r[I.u];
-  if(+r[I.anio]==Y){V[c.mes_venta-1]+=u;const m=vP[c.mes_venta-1];m.set(etq(r),(m.get(etq(r))||0)+u);}
-  if(+c.anio_ingreso==Y){G[c.mes_ingreso-1]+=u;const m=gP[c.mes_ingreso-1];m.set(etq(r),(m.get(etq(r))||0)+u);if(c.fecha_entrega)fe[c.mes_ingreso-1].add(c.fecha_entrega);}});
- const TV=V.reduce((a,b)=>a+b,0),TG=G.reduce((a,b)=>a+b,0);
- /* Aviso si falta la parrilla del año siguiente (el paq 1-1 ingresa en diciembre de este año) */
- const notas=[],sinCalDe=[...sinCalS];const cargadas=new Set(S.meta.map(m=>m.marca+"|"+m.anio));
- mk.forEach(m=>{if(cargadas.has(m+"|"+Y)&&!cargadas.has(m+"|"+(Y+1))&&S.D.some(r=>r[I.marca]==m&&/-\d/.test(r[I.paq])))notas.push(`La parrilla <b>${esc(m)} ${Y+1}</b> no está cargada: el ingreso de diciembre ${Y} no incluye su paquete 1-1.`);});
- if(sinCal)notas.push(`${fmt(sinCal)} unidades no tienen PAQ REAL en el archivo (${esc(sinCalDe.join(", "))}) y no se incluyen en esta vista.`);
+ const R=rows();const yrs=OPT.anio.filter(v=>pass("anio",v));
+ $("ingTitle").textContent="Parrilla vs mes de ingreso"+(yrs.length&&yrs.length<=3?" — "+yrs.join(" · "):"");$("ingPills").innerHTML=pillsHtml();
+ if(!R.length){$("ingNote").innerHTML="";$("kpis2").innerHTML="";$("chartV").innerHTML=$("chartG").innerHTML=$("tIng").innerHTML='<div class="empty">Sin datos para los filtros seleccionados</div>';$("vTag").textContent=$("gTag").textContent="";return;}
+ const multiM=new Set(R.map(r=>r[I.marca])).size>1;
+ const V=new Map(),G=new Map(),vP=new Map(),gP=new Map(),fe=new Map();let sinCal=0,antes=0;const sinCalS=new Set();
+ const add=(M,k,u)=>M.set(k,(M.get(k)||0)+u);const addP=(M,k,e,u)=>{if(!M.has(k))M.set(k,new Map());add(M.get(k),e,u);};
+ const etq=r=>(multiM?r[I.marca]+" ":"")+r[I.paq]+" ("+r[I.anio]+")";
+ R.forEach(r=>{const c=calDe(r[I.marca],r[I.anio],r[I.paq]);const u=r[I.u];
+  if(!c){sinCal+=u;sinCalS.add(r[I.marca]+" "+r[I.anio]+" "+r[I.col]);return;}
+  const kv=(+r[I.anio])*12+c.mes_venta-1,kg=(+c.anio_ingreso)*12+c.mes_ingreso-1;
+  add(V,kv,u);addP(vP,kv,etq(r),u);add(G,kg,u);addP(gP,kg,etq(r),u);
+  if(+c.anio_ingreso<+r[I.anio])antes+=u;
+  if(c.fecha_entrega){if(!fe.has(kg))fe.set(kg,new Set());fe.get(kg).add(c.fecha_entrega);}});
+ const ks=[...V.keys(),...G.keys()];const k0=Math.min(...ks),k1=Math.max(...ks);const K=[];for(let k=k0;k<=k1;k++)K.push(k);
+ const lab=k=>MESES[k%12]+" "+String(Math.floor(k/12)).slice(2),labL=k=>MESES_L[k%12]+" "+Math.floor(k/12);
+ const TV=R.reduce((s,r)=>s+r[I.u],0)-sinCal,TG=TV;
+ const notas=[];if(sinCal)notas.push(`${fmt(sinCal)} unidades no tienen PAQ REAL en el archivo (${esc([...sinCalS].join(", "))}) y no se incluyen en esta vista.`);
  $("ingNote").innerHTML=notas.map(n=>`<div class="note">${n}</div>`).join("");
- const pico=G.indexOf(Math.max(...G));
- $("kpis2").innerHTML=[["Presupuesto de venta "+Y,fmt(TV),"box"],["Presupuesto de ingreso "+Y,fmt(TG),"dn"],["Diferencia ingreso − venta",(TG-TV>0?"+":"")+fmt(TG-TV),"rep",TG-TV<0],["Mes pico de ingreso",TG?MESES_L[pico]+" · "+fmtC(G[pico]):"—","cal"]]
-  .map(([l,v,ic,w])=>`<div class="card kpi ${w?"warn":""}"><div><small>${l}</small><b>${v}</b></div><div class="ico">${svg(ic)}</div></div>`).join("");
- const Qv=V.map((u,i)=>({v:i,u})),Qg=G.map((u,i)=>({v:i,u}));
- $("chartV").innerHTML=barras(Qv,TV,{cls:"nc",lab:i=>MESES[i],val:fmtC,ancho:1100});$("vTag").textContent="Total "+fmt(TV)+" und";
- $("chartG").innerHTML=barras(Qg,TG,{cls:"tl",lab:i=>MESES[i],val:fmtC,ancho:1100});$("gTag").textContent="Total "+fmt(TG)+" und";
+ const pk=M=>{let b=null;M.forEach((u,k)=>{if(b==null||u>M.get(b))b=k;});return b;};const pv=pk(V),pg=pk(G);
+ $("kpis2").innerHTML=[["Unidades parrilla",fmt(TV),"box"],["Ingresan el año anterior a su parrilla",fmt(antes)+" und","dn"],["Mes pico de venta",pv==null?"—":labL(pv)+" · "+fmtC(V.get(pv)),"cal"],["Mes pico de ingreso",pg==null?"—":labL(pg)+" · "+fmtC(G.get(pg)),"cal"]]
+  .map(([l,v,ic])=>`<div class="card kpi"><div><small>${l}</small><b>${v}</b></div><div class="ico">${svg(ic)}</div></div>`).join("");
+ const Qv=K.map(k=>({v:k,u:V.get(k)||0})),Qg=K.map(k=>({v:k,u:G.get(k)||0}));
+ $("chartV").innerHTML=barras(Qv,TV,{cls:"nc",lab,val:fmtC,ancho:1100,tip:""});$("vTag").textContent="Total "+fmt(TV)+" und";
+ $("chartG").innerHTML=barras(Qg,TG,{cls:"tl",lab,val:fmtC,ancho:1100,tip:""});$("gTag").textContent="Total "+fmt(TG)+" und";
  const ordK=s=>{const y=+(s.match(/\((\d{4})\)$/)||[0,0])[1];return y*1000+paqKey(s.replace(/^\D+\s/,""));};
- const lst=m=>[...m.entries()].sort((a,b)=>ordK(a[0])-ordK(b[0])||a[0].localeCompare(b[0])).map(([k,u])=>`${esc(k)} <span class=dot>${fmtC(u)}</span>`).join(" + ")||'<span class=dot>—</span>';
+ const lst=m=>m?[...m.entries()].sort((a,b)=>ordK(a[0])-ordK(b[0])||a[0].localeCompare(b[0])).map(([k,u])=>`${esc(k)} <span class=dot>${fmtC(u)}</span>`).join(" + "):'<span class=dot>—</span>';
  let h=`<table><thead><tr><th>Mes</th><th>Paquetes presupuesto venta</th><th class=n>Ppto venta</th><th>Paquetes que ingresan</th><th class=n>Ppto ingreso</th><th class=n>Diferencia</th><th>Fecha entrega</th></tr></thead><tbody>`;
- for(let i=0;i<12;i++){const df=G[i]-V[i];h+=`<tr><td><b>${MESES_L[i]} ${Y}</b></td><td class=wrap>${lst(vP[i])}</td><td class=n>${fmt(V[i])}</td><td class=wrap>${lst(gP[i])}</td><td class=n><b>${fmt(G[i])}</b></td><td class="n ${df>0?"pos":df<0?"neg":""}">${df>0?"+":""}${fmt(df)}</td><td class=m>${[...fe[i]].sort().map(f=>esc(f.split("-").reverse().join("/"))).join(", ")||"—"}</td></tr>`;}
- h+=`<tr class=tot><td>Total</td><td></td><td class=n>${fmt(TV)}</td><td></td><td class=n>${fmt(TG)}</td><td class=n>${TG-TV>0?"+":""}${fmt(TG-TV)}</td><td></td></tr></tbody></table>`;
+ K.forEach(k=>{const v=V.get(k)||0,g=G.get(k)||0,df=g-v;h+=`<tr><td><b>${labL(k)}</b></td><td class=wrap>${lst(vP.get(k))}</td><td class=n>${fmt(v)}</td><td class=wrap>${lst(gP.get(k))}</td><td class=n><b>${fmt(g)}</b></td><td class="n ${df>0?"pos":df<0?"neg":""}">${df>0?"+":""}${fmt(df)}</td><td class=m>${[...(fe.get(k)||[])].sort().map(f=>esc(f.split("-").reverse().join("/"))).join(", ")||"—"}</td></tr>`;});
+ h+=`<tr class=tot><td>Total</td><td></td><td class=n>${fmt(TV)}</td><td></td><td class=n>${fmt(TG)}</td><td></td><td></td></tr></tbody></table>`;
  $("tIng").innerHTML=h;
 }
-$("ingYear").onchange=()=>render();
 
 /* ══ RENDER / TABS ══════════════════════════════════════ */
 function render(){if(S.tab=="adm")return;renderSide();if(S.tab=="inf")renderInforme();else renderIngreso();}
@@ -491,7 +495,7 @@ document.addEventListener("click",e=>{if(!e.target.closest("#vInf"))return;const
 document.addEventListener("click",e=>{if(!e.target.closest(".f"))document.querySelectorAll(".f.open").forEach(x=>x.classList.remove("open"));});
 function setTab(t){S.tab=t;document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.t==t));
  $("vInf").classList.toggle("hidden",t!="inf");$("vIng").classList.toggle("hidden",t!="ing");$("vAdm").classList.toggle("hidden",t!="adm");
- $("app").classList.toggle("noside",t=="adm");$("sNoteIng").classList.toggle("hidden",t!="ing");
+ $("app").classList.toggle("noside",t=="adm");
  if(t=="adm")adminSub(S.sub||"arch");else render();}
 $("tabs").onclick=e=>{const b=e.target.closest(".tab");if(b)setTab(b.dataset.t);};
 
