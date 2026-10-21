@@ -102,6 +102,12 @@ rect.b.tl{fill:var(--teal);cursor:default}rect.b.tl:hover{fill:#357b85}rect.b.nc
 .trk{height:9px;background:var(--soft);border-radius:99px;overflow:hidden}.trk div{height:100%;background:var(--navy);border-radius:99px}
 .hr .u{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}.hr .p{text-align:right;color:var(--mut);font-size:12px;font-variant-numeric:tabular-nums}
 .hr.warn .lb,.hr.warn .u,.hr.warn .p{color:var(--red)}.hr.warn .trk div{background:var(--red)}
+.hr.cv{grid-template-columns:minmax(110px,170px) 1fr 84px 84px 84px 52px}
+.hr.cv .trk.prev{height:5px;margin-top:4px}.hr.cv .trk.prev div{background:var(--slate)}
+.hr.hd{cursor:default;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:600}.hr.hd:hover{background:none}
+.hr.hd .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:middle}
+.hr.tt{cursor:default;border-top:2px solid var(--navy);border-radius:0;margin-top:4px}.hr.tt:hover{background:none}.hr.tt .lb,.hr.tt .u{font-weight:700;color:var(--navy)}
+@media(max-width:700px){.hr.cv{grid-template-columns:1fr 70px 70px 64px}.hr.cv>div:nth-child(2),.hr.cv>div:nth-child(6){display:none}}
 .hl.cmp .hr{grid-template-columns:1fr auto auto;grid-template-areas:'lb u p' 'tr tr tr';row-gap:6px}.hl.cmp .lb{grid-area:lb}.hl.cmp .trk{grid-area:tr}.hl.cmp .u{grid-area:u}.hl.cmp .p{grid-area:p;min-width:44px}
 .tw{overflow:auto}
 table{border-collapse:separate;border-spacing:0;width:100%}
@@ -180,6 +186,7 @@ tr.canc td{color:var(--mut)}tr.canc td b{text-decoration:line-through}
   <div class="tabs" id="tabs">
    <button class="tab on" data-t="inf">Informe parrilla</button>
    <button class="tab" data-t="ing">Parrilla vs mes ingreso</button>
+   <button class="tab" data-t="pvp">Consulta PVP</button>
    <button class="tab hidden" data-t="adm" id="tabAdm">Administración</button>
   </div>
   <div class="who"><span id="whoName"></span><span class="rol" id="whoRol"></span><button class="btn" id="bPass">Cambiar clave</button><button class="btn" id="bOut">Salir</button></div>
@@ -226,6 +233,19 @@ tr.canc td{color:var(--mut)}tr.canc td b{text-decoration:line-through}
  </section>
 
  <!-- TAB 3: ADMIN -->
+ <!-- TAB: CONSULTA PVP (admin, consulta y auditor) -->
+ <section id="vPvp" class="hidden">
+  <div class="topbar"><div><div class="crumb">Auditorías / Precio de venta</div><h1>Consulta de PVP</h1></div></div>
+  <div class="card" style="margin-top:14px"><div class="grid4">
+   <div class="fld" style="margin:0;grid-column:span 2"><label for="pvQ">Referencia(s)</label><input class="inp" id="pvQ" placeholder="Ej. 131I103 o varias: 131I103, 101I015" autocomplete="off"></div>
+   <div class="fld" style="margin:0"><label for="pvMarca">Marca</label><select class="inp" id="pvMarca"></select></div>
+   <div class="fld" style="margin:0"><label for="pvAnio">Parrilla</label><select class="inp" id="pvAnio"></select></div>
+   <label class="chk" style="padding-bottom:10px"><input type="checkbox" id="pvCanc"> Incluir canceladas</label>
+  </div></div>
+  <div class="card" style="margin-top:16px"><div class="ch"><h3>Resultados</h3><span class="tag" id="pvTag"></span></div><div class="tw" id="pvRes"></div></div>
+  <div class="foot">PVP tomado de la columna "PVP IVA FINAL" de cada parrilla. Se actualiza con la sincronización diaria (lun–sáb 8:15 am).</div>
+ </section>
+
  <section id="vAdm" class="hidden">
   <div class="topbar"><div><div class="crumb">Administración</div><h1>Panel de administración</h1><div class="desc">Archivos de parrilla, calendario de paquetes, usuarios y sincronización automática.</div></div></div>
   <div class="subtabs" style="margin-top:14px" id="subtabs">
@@ -301,7 +321,13 @@ function normProv(p){let s=p.toUpperCase().replace(/-?\s*EN\s+REORGANIZACI[OÓ]N
 const NRA_MAP={"NUEVO":"Nuevo","REPOSICION":"Reposición","ADICION":"Adición","ADICION NUEVO":"Adición Nuevo","ADICION REPOSICION":"Adición Reposición","ADICION RESPOSICION":"Adición Reposición","REPOSICION ADICION":"Reposición Adición","REPROGRAMACION":"Reprogramación","DESPLAZAMIENTO":"Desplazamiento"};
 function normNra(v){if(!v||v=="0")return"Sin dato";const k=sinTildes(v).toUpperCase().replace(/\s+/g," ").trim();return NRA_MAP[k]||titulo(v);}
 const unidades=v=>{if(v==null)return 0;if(typeof v=="number")return Math.round(v);const n=parseInt(String(v).replace(/[^0-9-]/g,""),10);return isNaN(n)?0:n;};
-const CAMPOS={can:"CANAL",paq:"PAQREAL",est:"ESTADO",lin:"LINEA",cat:"CATEGORIA",ref:"REFERENCIADISENO",color:"NOMBRECOLOR",prov:"PROVEEDOR",nra:"NUEVO/REPOSICION/ADICION",u:"UNIDADES",temp:"TEMPORADA"};
+/* Pesos: 69900 (número), "$ 69.900", "$ 18.390,00" → entero. El separador final con 1-2 dígitos es decimal. */
+function dinero(v){if(v==null||v==="")return 0;if(typeof v=="number")return Math.round(v);let s=String(v).replace(/[^0-9.,]/g,"");if(!s)return 0;
+ const last=Math.max(s.lastIndexOf(","),s.lastIndexOf("."));const dec=last>=0?s.length-last-1:0;
+ s=(last>=0&&dec>=1&&dec<=2)?s.slice(0,last).replace(/[.,]/g,"")+"."+s.slice(last+1):s.replace(/[.,]/g,"");const n=parseFloat(s);return isNaN(n)?0:Math.round(n);}
+const CAMPOS={can:"CANAL",paq:"PAQREAL",est:"ESTADO",lin:"LINEA",cat:"CATEGORIA",ref:"REFERENCIADISENO",color:"NOMBRECOLOR",prov:"PROVEEDOR",nra:"NUEVO/REPOSICION/ADICION",u:"UNIDADES",temp:"TEMPORADA",pvp:"PVPIVAFINAL"};
+/* Orden de columnas guardadas. "u" siempre al final (Supabase suma el último valor como unidades). */
+const COLS=["col","paq","prov","cat","lin","can","ref","color","nra","est","pvp","u"];
 function parsearLibro(wb){
  const filas=[],hojas=[];
  wb.SheetNames.forEach(name=>{
@@ -319,18 +345,18 @@ function parsearLibro(wb){
    let prov=normProv(limpio(g("prov")));if(!prov||prov=="0")prov="SIN PROVEEDOR ASIGNADO";if(cat.toUpperCase().startsWith("TENIS"))prov="CALZADO";
    let est=limpio(g("est")).toUpperCase();if(!est||est=="0")est="ACTIVO";
    let can=limpio(g("can")).toUpperCase();if(!can)can="SIN CANAL";
-   filas.push([col,paq,prov,cat,titulo(limpio(g("lin"))),can,ref,limpio(g("color")).toUpperCase(),normNra(limpio(g("nra"))),est,unidades(g("u"))]);n++;}
+   filas.push([col,paq,prov,cat,titulo(limpio(g("lin"))),can,ref,limpio(g("color")).toUpperCase(),normNra(limpio(g("nra"))),est,dinero(g("pvp")),unidades(g("u"))]);n++;}
   hojas.push(name+": "+n+" filas");});
  return {filas,hojas};}
 
 /* ══ DATOS ══════════════════════════════════════════════ */
-const I={marca:0,anio:1,col:2,paq:3,prov:4,cat:5,lin:6,can:7,ref:8,color:9,nra:10,est:11,u:12};
+const I={marca:0,anio:1,col:2,paq:3,prov:4,cat:5,lin:6,can:7,ref:8,color:9,nra:10,est:11,u:12,pvp:13};
 async function cargarDatos(){
  const [rows,cal]=await Promise.all([rpc("pa_parrillas_datos",tk()),rpc("pa_calendario_listar",tk())]);
  S.D=[];S.meta=[];
  (rows||[]).forEach(p=>{const d=p.datos||{};const ci=(d.cols||[]);const ix=k=>ci.indexOf(k);
-  const map=["col","paq","prov","cat","lin","can","ref","color","nra","est","u"].map(ix);
-  (d.rows||[]).forEach(r=>S.D.push([p.marca,String(p.anio),...map.map(i=>i<0?"":r[i])]));
+  const map=["col","paq","prov","cat","lin","can","ref","color","nra","est","u","pvp"].map(ix);
+  (d.rows||[]).forEach(r=>S.D.push([p.marca,String(p.anio),...map.map((i,j)=>i<0?(j>=10?0:""):r[i])]));
   S.meta.push({marca:p.marca,anio:p.anio,actualizado_en:p.actualizado_en});});
  S.cal={};(cal||[]).forEach(c=>S.cal[c.marca+"|"+c.anio+"|"+c.paq]=c);
 }
@@ -397,6 +423,24 @@ function renderSide(){
  const op=document.querySelector(".f.open");if(op){const k=op.id.slice(2);const sc=$("p_"+k);const st=sc.scrollTop;const sv=(sc.querySelector("input.s")||{}).value;fillPan(k);sc.scrollTop=st;if(sv){const si=sc.querySelector("input.s");si.value=sv;si.oninput();}}
 }
 function group(R,k,keyFn){const m=new Map();R.forEach(r=>{const v=keyFn?keyFn(r):r[I[k]];let g=m.get(v);if(!g){g={v,u:0,refs:new Set(),n:0};m.set(v,g);}g.u+=r[I.u];g.refs.add(r[I.ref]);g.n++;});return [...m.values()].sort((a,b)=>b.u-a.u||b.n-a.n);}
+/* Carga por categoría + comparativo con la parrilla del año anterior (mismos filtros, año −1).
+   Solo aplica con un único año de parrilla seleccionado y si el año anterior está cargado. */
+function catComparativo(R,T){
+ const G=group(R,"cat");const yrs=OPT.anio.filter(v=>pass("anio",v));const Y=yrs.length==1?+yrs[0]:null;
+ const q=REF.trim().toUpperCase();
+ /* Solo las mismas COL que tiene el año actual: si 2027 aún va en COL 2, se compara contra COL 1-2 de 2026 */
+ const cols=new Set(R.map(r=>r[I.col]));
+ const RP=Y?S.D.filter(r=>+r[I.anio]==Y-1&&cols.has(r[I.col])&&DIMS.every(([k])=>k=="anio"||pass(k,r[I[k]]))&&(!q||r[I.ref].includes(q))):[];
+ if(!RP.length){hlist("lCat","cat",R,T);$("catTag").textContent=G.length+" categorías"+(Y?` · sin parrilla ${Y-1} para comparar`:" · elige un solo año para comparar");return;}
+ const P=new Map(group(RP,"cat").map(g=>[g.v,g.u]));const TP=RP.reduce((s,r)=>s+r[I.u],0);
+ P.forEach((u,v)=>{if(!G.find(g=>g.v==v))G.push({v,u:0,refs:new Set(),n:0});});
+ const mx=Math.max(1,...G.map(g=>Math.max(g.u,P.get(g.v)||0)));
+ const vr=(a,b)=>!b?(a?'<span class="pos">Nuevo</span>':'<span class=dot>—</span>'):`<span class="${a>=b?"pos":"neg"}">${a>=b?"▲ +":"▼ "}${pc(a-b,b)}</span>`;
+ $("lCat").innerHTML=`<div class="hr cv hd"><div>Categoría</div><div><span class=sw style="background:var(--navy)"></span>${Y} <span class=sw style="background:var(--slate);margin-left:10px"></span>${Y-1}</div><div class=n>${Y}</div><div class=n>${Y-1}</div><div class=n>Var.</div><div class=n>% part.</div></div>`+
+  G.map(g=>{const p=P.get(g.v)||0;return `<div class="hr cv ${isSel("cat",g.v)?"on":""}" data-k="cat" data-v="${esc(g.v)}"><div class="lb">${esc(g.v)}<small>${g.refs.size} ref · ${g.n} líneas</small></div><div><div class="trk"><div style="width:${(100*g.u/mx).toFixed(1)}%"></div></div><div class="trk prev"><div style="width:${(100*p/mx).toFixed(1)}%"></div></div></div><div class="u">${fmt(g.u)}</div><div class="u m">${fmt(p)}</div><div class="u">${vr(g.u,p)}</div><div class="p">${pc(g.u,T)}</div></div>`;}).join("")+
+  `<div class="hr cv tt"><div class="lb">Total</div><div></div><div class="u">${fmt(T)}</div><div class="u m">${fmt(TP)}</div><div class="u">${vr(T,TP)}</div><div class="p">100%</div></div>`;
+ const allCols=new Set(S.D.filter(r=>+r[I.anio]==Y-1).map(r=>r[I.col]));
+ $("catTag").textContent=`${G.length} categorías · vs parrilla ${Y-1}`+(cols.size<allCols.size?` (mismas COL: ${sortVals("col",[...cols]).join(", ")})`:"");}
 function hlist(id,k,R,T,warnV,G){G=G||group(R,k);const mx=G.length?G[0].u:1;
  $(id).innerHTML=G.map(g=>`<div class="hr ${k&&isSel(k,g.v)?"on":""} ${g.v==warnV?"warn":""}" ${k?`data-k="${k}" data-v="${esc(g.v)}"`:""}><div class="lb">${esc(g.label||g.v)}<small>${g.refs.size} ref · ${g.n} líneas</small></div><div class="trk"><div style="width:${(100*g.u/(mx||1)).toFixed(1)}%"></div></div><div class="u">${fmt(g.u)}</div><div class="p">${pc(g.u,T)}</div></div>`).join("")||'<div class="m">Sin datos</div>';}
 const COLORS=["#13294b","#e8a33d","#3f8f9b","#8792a6","#c8423b","#6b5ca5"];
@@ -430,7 +474,7 @@ function renderInforme(){
   ds+=`<path data-k="can" data-v="${esc(g.v)}" fill="${COLORS[i%COLORS.length]}" opacity="${active("can")&&!pass("can",g.v)?.25:1}" d="M${p(ro,b0)} A${ro},${ro} 0 ${L} 1 ${p(ro,b1)} L${p(ri,b1)} A${ri},${ri} 0 ${L} 0 ${p(ri,b0)}Z"><title>${esc(g.v)}: ${fmt(g.u)} und · ${pc(g.u,T)}</title></path>`;a0=a1;});
  ds+=`<text class=dc1 x=95 y=96 text-anchor=middle>${T>=1000?fmt(T/1000)+"k":fmt(T)}</text><text class=dc2 x=95 y=114 text-anchor=middle>UNIDADES</text></svg>`;
  $("donut").innerHTML=ds+`<div class=leg>${Cn.map((g,i)=>`<div class="lg ${isSel("can",g.v)?"on":""}" data-k="can" data-v="${esc(g.v)}"><span class=sw style="background:${COLORS[i%COLORS.length]}"></span>${esc(g.v)}<small>${fmt(g.u)} · ${pc(g.u,T)}</small></div>`).join("")}</div>`;
- hlist("lCat","cat",R,T);$("catTag").textContent=group(R,"cat").length+" categorías";
+ catComparativo(R,T);
  hlist("lCol","col",R,T,null,sortVals("col",group(R,"col").map(g=>g.v)).map(v=>group(R,"col").find(g=>g.v==v)));
  hlist("lMarca",null,R,T,null,group(R,null,r=>r[I.marca]+" "+r[I.anio]));
  hlist("lLin","lin",R,T);hlist("lNra","nra",R,T);hlist("lEst","est",R,T,"CANCELADO");
@@ -449,7 +493,7 @@ function renderInforme(){
  DR.slice(0,L).forEach(r=>{const e=r[I.est];d+=`<tr class="${e=="CANCELADO"?"canc":""}"><td><b>${esc(r[I.ref])}</b></td><td>${esc(r[I.color])}</td><td>${esc(r[I.marca])}</td><td>${esc(r[I.anio])}</td><td>${esc(r[I.col])}</td><td>${esc(r[I.paq])}</td><td>${esc(r[I.cat])}</td><td>${esc(r[I.lin])}</td><td>${esc(r[I.can])}</td><td>${esc(r[I.prov])}</td><td>${esc(r[I.nra])}</td><td><span class="badge b-${esc(e.split(/[ /]/)[0])}">${esc(e)}</span></td><td class=n><b>${fmt(r[I.u])}</b></td></tr>`;});
  $("tDet").innerHTML=d+"</tbody></table>";$("dn").textContent=R.length>L?`${L} de ${R.length} líneas`:`${R.length} líneas`;
 }
-$("bXls").onclick=()=>{const R=rows();const ws=XLSX.utils.aoa_to_sheet([["Marca","Año","COL","Paquete","Proveedor","Categoría","Línea","Canal","Referencia","Color","Nuevo/Reposición","Estado","Unidades"],...R]);
+$("bXls").onclick=()=>{const R=rows();const ws=XLSX.utils.aoa_to_sheet([["Marca","Año","COL","Paquete","Proveedor","Categoría","Línea","Canal","Referencia","Color","Nuevo/Reposición","Estado","Unidades","PVP IVA final"],...R]);
  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Parrilla");XLSX.writeFile(wb,"Parrilla_filtrada_"+new Date().toISOString().slice(0,10)+".xlsx");};
 
 /* ══ TAB 2: PARRILLA VS MES INGRESO ═════════════════════ */
@@ -490,13 +534,13 @@ function renderIngreso(){
 }
 
 /* ══ RENDER / TABS ══════════════════════════════════════ */
-function render(){if(S.tab=="adm")return;renderSide();if(S.tab=="inf")renderInforme();else renderIngreso();}
+function render(){if(S.tab=="adm"||S.tab=="pvp")return;renderSide();if(S.tab=="inf")renderInforme();else renderIngreso();}
 document.addEventListener("click",e=>{if(!e.target.closest("#vInf"))return;const t=e.target.closest("[data-k][data-v]");if(t){toggle(t.dataset.k,t.dataset.v,e.ctrlKey||e.metaKey);}});
 document.addEventListener("click",e=>{if(!e.target.closest(".f"))document.querySelectorAll(".f.open").forEach(x=>x.classList.remove("open"));});
 function setTab(t){S.tab=t;document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.t==t));
- $("vInf").classList.toggle("hidden",t!="inf");$("vIng").classList.toggle("hidden",t!="ing");$("vAdm").classList.toggle("hidden",t!="adm");
- $("app").classList.toggle("noside",t=="adm");
- if(t=="adm")adminSub(S.sub||"arch");else render();}
+ $("vInf").classList.toggle("hidden",t!="inf");$("vIng").classList.toggle("hidden",t!="ing");$("vAdm").classList.toggle("hidden",t!="adm");$("vPvp").classList.toggle("hidden",t!="pvp");
+ $("app").classList.toggle("noside",t=="adm"||t=="pvp");
+ if(t=="adm")adminSub(S.sub||"arch");else if(t=="pvp")abrirPvp();else render();}
 $("tabs").onclick=e=>{const b=e.target.closest(".tab");if(b)setTab(b.dataset.t);};
 
 /* ══ SESIÓN ═════════════════════════════════════════════ */
@@ -504,10 +548,37 @@ function finSesion(msg){if(S.token)rpc("pa_logout",{p_token:S.token}).catch(()=>
  $("app").classList.add("hidden");$("login").classList.remove("hidden");loading(false);if(msg){$("lErr").textContent=msg;$("lErr").classList.remove("hidden");}}
 async function entrar(){
  $("login").classList.add("hidden");$("app").classList.remove("hidden");
- $("whoName").innerHTML="<b>"+esc(S.user.nombre)+"</b>";$("whoRol").textContent=S.user.rol=="admin"?"Administrador":"Consulta";
+ $("whoName").innerHTML="<b>"+esc(S.user.nombre)+"</b>";$("whoRol").textContent=ROLES[S.user.rol]||S.user.rol;
+ S.PVP=null;
  $("tabAdm").classList.toggle("hidden",S.user.rol!="admin");
  loading(true);try{await cargarDatos();}catch(e){toast("No se pudieron cargar los datos: "+e.message,true);}loading(false);
  reset();setTab("inf");}
+const ROLES={admin:"Administrador",consulta:"Consulta",auditor:"Auditor"};
+
+/* ══ CONSULTA PVP ═══════════════════════════════════════ */
+/* S.PVP: [marca, anio, col, paq, canal, ref, color, estado, pvp] */
+async function abrirPvp(){
+ if(!S.PVP){/* se arma con los mismos datos del informe (columna PVP IVA FINAL) */
+  S.PVP=S.D.map(r=>[r[I.marca],r[I.anio],r[I.col],r[I.paq],r[I.can],r[I.ref],r[I.color],r[I.est],+r[I.pvp]||0]);
+  const ms=[...new Set(S.PVP.map(r=>r[0]))].sort(),ys=[...new Set(S.PVP.map(r=>r[1]))].sort().reverse();
+  $("pvMarca").innerHTML='<option value="">Todas</option>'+ms.map(m=>`<option>${esc(m)}</option>`).join("");
+  $("pvAnio").innerHTML='<option value="">Todas</option>'+ys.map(y=>`<option>${esc(y)}</option>`).join("");}
+ renderPvp();setTimeout(()=>$("pvQ").focus(),50);}
+const pesos=n=>n?"$ "+fmt(n):'<span class=dot>Sin PVP</span>';
+function renderPvp(){
+ if(!S.PVP)return;
+ const terms=$("pvQ").value.toUpperCase().split(/[\s,;]+/).filter(t=>t.length>=3);const m=$("pvMarca").value,y=$("pvAnio").value,canc=$("pvCanc").checked;
+ const box=$("pvRes");
+ if(!terms.length){box.innerHTML=`<div class="empty"><b>Escribe una referencia</b>Mínimo 3 caracteres. Puedes buscar varias a la vez separadas por espacio o coma (ej. 131I103 101I015).</div>`;$("pvTag").textContent=fmt(new Set(S.PVP.map(r=>r[5])).size)+" referencias disponibles";return;}
+ const R=S.PVP.filter(r=>terms.some(t=>r[5].includes(t))&&(!m||r[0]==m)&&(!y||r[1]==y)&&(canc||r[7]!="CANCELADO"))
+  .sort((a,b)=>a[5].localeCompare(b[5])||b[1].localeCompare(a[1])||a[0].localeCompare(b[0])||paqKey(a[3])-paqKey(b[3])||a[6].localeCompare(b[6]));
+ const refs=[...new Set(R.map(r=>r[5]))];$("pvTag").textContent=`${refs.length} referencia${refs.length==1?"":"s"} · ${R.length} línea${R.length==1?"":"s"}`;
+ if(!R.length){box.innerHTML=`<div class="empty"><b>Sin resultados</b>No hay referencias que coincidan${canc?"":" (las canceladas están ocultas)"}.</div>`;return;}
+ const L=300;let h=`<table><thead><tr><th>Referencia</th><th>Marca</th><th>Parrilla</th><th>COL</th><th>Paq</th><th>Color</th><th>Canal</th><th>Estado</th><th class=n>PVP IVA final</th></tr></thead><tbody>`;
+ refs.forEach(ref=>{const F=R.filter(r=>r[5]==ref);const dist=new Set(F.filter(r=>r[8]).map(r=>r[8]));
+  F.forEach((r,i)=>{if(h.length&&R.indexOf(r)>=L)return;h+=`<tr class="${r[7]=="CANCELADO"?"canc":""}"><td>${i?"":`<b>${esc(ref)}</b>${dist.size>1?' <span class="badge b-EN">PVP diferente por color/canal</span>':""}`}</td><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td><td>${esc(r[3])}</td><td>${esc(r[6])}</td><td>${esc(r[4])}</td><td><span class="badge b-${esc(String(r[7]).split(/[ /]/)[0])}">${esc(r[7])}</span></td><td class=n><b>${pesos(r[8])}</b></td></tr>`;});});
+ box.innerHTML=h+"</tbody></table>"+(R.length>L?`<div class="foot">Se muestran ${L} de ${R.length} líneas: escribe una referencia más completa.</div>`:"");}
+$("pvQ").oninput=renderPvp;["pvMarca","pvAnio","pvCanc"].forEach(id=>$(id).onchange=renderPvp);
 $("fLogin").onsubmit=async e=>{e.preventDefault();$("lErr").classList.add("hidden");const b=$("lBtn");b.disabled=true;b.textContent="Verificando…";
  try{const r=await rpc("pa_login",{p_usuario:$("lUser").value,p_pass:$("lPass").value});
   if(!r||!r.length){$("lErr").textContent="Usuario o contraseña incorrectos.";$("lErr").classList.remove("hidden");}
@@ -572,10 +643,10 @@ async function subirArchivo(file,marca,anio){
  try{const wb=XLSX.read(await file.arrayBuffer(),{type:"array"});res=parsearLibro(wb);}catch(e){loading(false);toast("No se pudo leer el archivo: "+e.message,true);return;}
  loading(false);
  if(!res.filas.length){toast("El archivo no tiene hojas de parrilla (se buscan los encabezados PAQ REAL, UNIDADES y PROVEEDOR).",true);return;}
- const tot=res.filas.reduce((s,r)=>s+r[10],0);
+ const tot=res.filas.reduce((s,r)=>s+r[r.length-1],0);
  if(!confirm(`Cargar "${file.name}" como parrilla ${marca} ${anio}?\n\n${res.hojas.join("\n")}\n\nTotal: ${fmt(res.filas.length)} líneas · ${fmt(tot)} unidades\n\nReemplaza los datos actuales de ${marca} ${anio}.`))return;
  loading(true);
- try{await rpc("pa_parrilla_guardar",tk({p_marca:marca,p_anio:anio,p_archivo:file.name,p_datos:{cols:["col","paq","prov","cat","lin","can","ref","color","nra","est","u"],rows:res.filas}}));
+ try{await rpc("pa_parrilla_guardar",tk({p_marca:marca,p_anio:anio,p_archivo:file.name,p_datos:{cols:COLS,rows:res.filas}}));
   await cargarDatos();extraSlots=extraSlots.filter(x=>!(x.marca==marca&&x.anio==anio));toast(`Parrilla ${marca} ${anio} actualizada (${fmt(res.filas.length)} líneas)`);}
  catch(e){toast("Error al guardar: "+e.message,true);}
  loading(false);admArchivos();}
@@ -611,9 +682,9 @@ async function admUsuarios(){
  const box=$("sUsr");box.innerHTML='<div class="card empty">Cargando…</div>';let us=[];
  try{us=await rpc("pa_usuarios_listar",tk());}catch(e){box.innerHTML=`<div class="card err">${esc(e.message)}</div>`;return;}
  box.innerHTML=`<div class="card"><div class="ch"><h3>Usuarios</h3><button class="btn amb" id="uNew">+ Nuevo usuario</button></div><div class="tw"><table><thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Último ingreso</th><th></th></tr></thead><tbody>${
-  us.map(u=>`<tr><td><b>${esc(u.usuario)}</b></td><td>${esc(u.nombre)}</td><td>${u.rol=="admin"?"Administrador":"Consulta"}</td><td><span class="badge ${u.activo?"b-ok":"b-bad"}">${u.activo?"Activo":"Inactivo"}</span></td><td class=m>${esc(fdt(u.ultimo_ingreso))}</td>
+  us.map(u=>`<tr><td><b>${esc(u.usuario)}</b></td><td>${esc(u.nombre)}</td><td>${ROLES[u.rol]||esc(u.rol)}</td><td><span class="badge ${u.activo?"b-ok":"b-bad"}">${u.activo?"Activo":"Inactivo"}</span></td><td class=m>${esc(fdt(u.ultimo_ingreso))}</td>
   <td class=n><button class="btn" data-ed="${u.id}">Editar</button> ${u.usuario==S.user.usuario?"":`<button class="btn dan" data-rm="${u.id}">Eliminar</button>`}</td></tr>`).join("")}</tbody></table></div>
-  <div class="foot">El rol <b>Consulta</b> solo ve los informes. El rol <b>Administrador</b> además carga archivos, edita el calendario y gestiona usuarios.</div></div>`;
+  <div class="foot">El rol <b>Consulta</b> ve los informes y la Consulta PVP. El rol <b>Administrador</b> además carga archivos, edita el calendario y gestiona usuarios.</div></div>`;
  const abrir=u=>{S.uEdit=u||null;$("uTitle").textContent=u?"Editar usuario":"Nuevo usuario";$("uUser").value=u?u.usuario:"";$("uName").value=u?u.nombre:"";$("uRol").value=u?u.rol:"consulta";$("uAct").checked=u?u.activo:true;$("uPass").value="";
   $("uPassLbl").textContent=u?"Nueva contraseña (vacío = no cambiar)":"Contraseña (mín. 6)";$("uPass").required=!u;$("mUsr").classList.remove("hidden");};
  $("uNew").onclick=()=>abrir();
