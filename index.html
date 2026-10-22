@@ -22,6 +22,7 @@ button,input,select{font:inherit}
 .btn.amb{background:var(--amber);border-color:var(--amber);color:var(--side);font-weight:600}
 .btn.dan{color:var(--red);border-color:#f0cfcc}.btn.dan:hover{background:#fbe7e5}.btn:disabled{opacity:.55;cursor:default}
 .btn.full{width:100%;padding:11px}
+.lnk{color:var(--red);cursor:pointer;font-size:12.5px;text-decoration:underline;text-underline-offset:3px}
 .err{background:#fbe7e5;color:var(--red);border-radius:9px;padding:9px 12px;font-size:12px;margin-bottom:12px}
 /* APP */
 .app{display:grid;grid-template-columns:268px 1fr;min-height:100vh}
@@ -168,6 +169,23 @@ tr.canc td{color:var(--mut)}tr.canc td b{text-decoration:line-through}
   <div class="fld"><label for="lUser">Usuario</label><input id="lUser" autocomplete="username" required></div>
   <div class="fld"><label for="lPass">Contraseña</label><input id="lPass" type="password" autocomplete="current-password" required></div>
   <button class="btn pri full" id="lBtn" type="submit">Entrar</button>
+  <p style="margin:14px 0 0;text-align:center"><a class="lnk" id="lOlvido">¿Olvidaste tu contraseña?</a></p>
+ </form>
+ <!-- Recuperar contraseña: paso 1 pide el usuario, paso 2 el código del correo + la nueva clave -->
+ <form class="lcard hidden" id="fOlv" autocomplete="off">
+  <div class="brand"><div class="logo">GCO</div><div><b>PARRILLAS</b><span>Rifle · Moft</span></div></div>
+  <h2>Cambiar contraseña</h2>
+  <div id="oPaso1"><p>Escribe tu usuario. Te enviaremos un código de 6 dígitos al correo registrado.</p>
+   <div class="fld"><label for="oUser">Usuario</label><input id="oUser" autocomplete="username"></div>
+   <button class="btn pri full" type="button" id="oEnviar">Enviar código</button></div>
+  <div id="oPaso2" class="hidden"><p id="oMsg"></p>
+   <div class="fld"><label for="oCod">Código del correo</label><input id="oCod" inputmode="numeric" maxlength="6" placeholder="000000" style="letter-spacing:6px;font-size:18px;text-align:center"></div>
+   <div class="fld"><label for="oN">Nueva contraseña (mín. 6)</label><input id="oN" type="password" autocomplete="new-password"></div>
+   <div class="fld"><label for="oN2">Confirmar nueva contraseña</label><input id="oN2" type="password" autocomplete="new-password"></div>
+   <button class="btn pri full" type="button" id="oCambiar">Cambiar contraseña</button>
+   <p style="margin:10px 0 0;text-align:center;font-size:12px"><a class="lnk" id="oReenviar">Reenviar código</a></p></div>
+  <div class="err hidden" id="oErr" style="margin:12px 0 0"></div>
+  <p style="margin:14px 0 0;text-align:center"><a class="lnk" id="oVolver">← Volver a ingresar</a></p>
  </form>
 </section>
 
@@ -267,12 +285,21 @@ tr.canc td{color:var(--mut)}tr.canc td b{text-decoration:line-through}
  <div class="ch"><h3>Cambiar contraseña</h3></div>
  <div class="fld"><label>Contraseña actual</label><input type="password" id="pA" autocomplete="current-password" required></div>
  <div class="fld"><label>Nueva contraseña (mín. 6)</label><input type="password" id="pN" autocomplete="new-password" minlength="6" required></div>
+ <div class="fld"><label>Confirmar nueva contraseña</label><input type="password" id="pN2" autocomplete="new-password" minlength="6" required></div>
  <div class="srow" style="justify-content:flex-end"><button type="button" class="btn" data-close>Cancelar</button><button class="btn pri">Guardar</button></div>
+</form></div>
+<div class="modal hidden" id="mReset"><form class="card" id="fReset">
+ <div class="ch"><h3 id="rTitle">Cambiar contraseña</h3></div>
+ <div class="desc" style="margin-bottom:12px">Asigna una contraseña nueva a este usuario. Compártela por un canal privado; luego el usuario puede cambiarla desde <b>Cambiar clave</b>.</div>
+ <div class="fld"><label>Nueva contraseña (mín. 6)</label><div class="srow" style="margin:0"><input class="inp" id="rN" type="text" minlength="6" required autocomplete="off"><button type="button" class="btn" id="rGen">Generar</button></div></div>
+ <div class="fld"><label>Confirmar nueva contraseña</label><input id="rN2" type="text" minlength="6" required autocomplete="off"></div>
+ <div class="srow" style="justify-content:flex-end"><button type="button" class="btn" data-close>Cancelar</button><button class="btn pri">Guardar contraseña</button></div>
 </form></div>
 <div class="modal hidden" id="mUsr"><form class="card" id="fUsr">
  <div class="ch"><h3 id="uTitle">Usuario</h3></div>
  <div class="fld"><label>Usuario (para ingresar)</label><input id="uUser" required autocomplete="off"></div>
  <div class="fld"><label>Nombre</label><input id="uName" required></div>
+ <div class="fld"><label>Correo (para recuperar la contraseña)</label><input id="uEmail" type="email" placeholder="nombre@gco.com.co" autocomplete="off"></div>
  <div class="fld"><label>Rol</label><select id="uRol"><option value="consulta">Consulta</option><option value="admin">Administrador</option></select></div>
  <div class="fld"><label id="uPassLbl">Contraseña</label><input id="uPass" type="text" autocomplete="off"></div>
  <label class="chk"><input type="checkbox" id="uAct" checked> Activo</label>
@@ -545,7 +572,7 @@ $("tabs").onclick=e=>{const b=e.target.closest(".tab");if(b)setTab(b.dataset.t);
 
 /* ══ SESIÓN ═════════════════════════════════════════════ */
 function finSesion(msg){if(S.token)rpc("pa_logout",{p_token:S.token}).catch(()=>{});S.token=null;S.user=null;S.D=[];store.del("pa_token");
- $("app").classList.add("hidden");$("login").classList.remove("hidden");loading(false);if(msg){$("lErr").textContent=msg;$("lErr").classList.remove("hidden");}}
+ $("app").classList.add("hidden");$("login").classList.remove("hidden");verLogin(false);loading(false);if(msg){$("lErr").textContent=msg;$("lErr").classList.remove("hidden");}}
 async function entrar(){
  $("login").classList.add("hidden");$("app").classList.remove("hidden");
  $("whoName").innerHTML="<b>"+esc(S.user.nombre)+"</b>";$("whoRol").textContent=ROLES[S.user.rol]||S.user.rol;
@@ -586,9 +613,31 @@ $("fLogin").onsubmit=async e=>{e.preventDefault();$("lErr").classList.add("hidde
  catch(err){$("lErr").textContent="Error de conexión: "+err.message;$("lErr").classList.remove("hidden");}
  b.disabled=false;b.textContent="Entrar";};
 $("bOut").onclick=()=>finSesion();
+
+/* Olvidé mi contraseña: el código lo genera y lo envía Supabase; aquí solo se pide y se confirma */
+const oErr=m=>{$("oErr").textContent=m;$("oErr").classList.toggle("hidden",!m);};
+const verLogin=olv=>{$("fLogin").classList.toggle("hidden",olv);$("fOlv").classList.toggle("hidden",!olv);oErr("");$("lErr").classList.add("hidden");};
+$("lOlvido").onclick=()=>{$("fOlv").reset();$("oUser").value=$("lUser").value;$("oPaso1").classList.remove("hidden");$("oPaso2").classList.add("hidden");verLogin(true);$("oUser").focus();};
+$("oVolver").onclick=()=>verLogin(false);
+async function enviarCodigo(){const u=$("oUser").value.trim();if(!u){oErr("Escribe tu usuario.");return;}oErr("");const b=$("oEnviar");b.disabled=true;
+ try{await rpc("pa_solicitar_reset",{p_usuario:u});
+  $("oMsg").innerHTML=`Si el usuario <b>${esc(u)}</b> tiene un correo registrado, te llegará un código en los próximos minutos (revisa también la carpeta de spam). Vence en 15 minutos.`;
+  $("oPaso1").classList.add("hidden");$("oPaso2").classList.remove("hidden");$("oCod").focus();}
+ catch(e){oErr("No se pudo enviar el código: "+e.message);}b.disabled=false;}
+$("oEnviar").onclick=enviarCodigo;$("oReenviar").onclick=enviarCodigo;
+$("fOlv").onsubmit=e=>{e.preventDefault();($("oPaso2").classList.contains("hidden")?$("oEnviar"):$("oCambiar")).click();};
+$("oCambiar").onclick=async()=>{const c=$("oCod").value.replace(/\D/g,""),n=$("oN").value;
+ if(c.length!=6){oErr("El código tiene 6 dígitos.");return;}if(n.length<6){oErr("La contraseña debe tener mínimo 6 caracteres.");return;}if(n!==$("oN2").value){oErr("La contraseña y su confirmación no coinciden.");return;}
+ const b=$("oCambiar");b.disabled=true;
+ try{const ok=await rpc("pa_confirmar_reset",{p_usuario:$("oUser").value.trim(),p_codigo:c,p_nueva:n});
+  if(ok){verLogin(false);$("lUser").value=$("oUser").value.trim();$("lPass").value="";toast("Contraseña cambiada. Ya puedes ingresar.");$("lPass").focus();}
+  else oErr("Código incorrecto o vencido. Revisa el correo o pide un código nuevo.");}
+ catch(e){oErr(e.message);}b.disabled=false;};
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>b.closest(".modal").classList.add("hidden"));
 $("bPass").onclick=()=>{$("fPass").reset();$("mPass").classList.remove("hidden");};
-$("fPass").onsubmit=async e=>{e.preventDefault();try{const ok=await rpc("pa_cambiar_password",tk({p_actual:$("pA").value,p_nueva:$("pN").value}));
+$("fPass").onsubmit=async e=>{e.preventDefault();if($("pN").value!==$("pN2").value){toast("La nueva contraseña y su confirmación no coinciden",true);return;}
+ if($("pN").value===$("pA").value){toast("La nueva contraseña debe ser distinta a la actual",true);return;}
+ try{const ok=await rpc("pa_cambiar_password",tk({p_actual:$("pA").value,p_nueva:$("pN").value}));
  if(ok){toast("Contraseña actualizada");$("mPass").classList.add("hidden");}else toast("La contraseña actual no es correcta",true);}catch(err){toast(err.message,true);}};
 
 /* ══ ADMINISTRACIÓN ═════════════════════════════════════ */
@@ -681,18 +730,25 @@ function admCalendario(){
 async function admUsuarios(){
  const box=$("sUsr");box.innerHTML='<div class="card empty">Cargando…</div>';let us=[];
  try{us=await rpc("pa_usuarios_listar",tk());}catch(e){box.innerHTML=`<div class="card err">${esc(e.message)}</div>`;return;}
- box.innerHTML=`<div class="card"><div class="ch"><h3>Usuarios</h3><button class="btn amb" id="uNew">+ Nuevo usuario</button></div><div class="tw"><table><thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Último ingreso</th><th></th></tr></thead><tbody>${
-  us.map(u=>`<tr><td><b>${esc(u.usuario)}</b></td><td>${esc(u.nombre)}</td><td>${ROLES[u.rol]||esc(u.rol)}</td><td><span class="badge ${u.activo?"b-ok":"b-bad"}">${u.activo?"Activo":"Inactivo"}</span></td><td class=m>${esc(fdt(u.ultimo_ingreso))}</td>
-  <td class=n><button class="btn" data-ed="${u.id}">Editar</button> ${u.usuario==S.user.usuario?"":`<button class="btn dan" data-rm="${u.id}">Eliminar</button>`}</td></tr>`).join("")}</tbody></table></div>
+ box.innerHTML=`<div class="card"><div class="ch"><h3>Usuarios</h3><button class="btn amb" id="uNew">+ Nuevo usuario</button></div><div class="tw"><table><thead><tr><th>Usuario</th><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Último ingreso</th><th></th></tr></thead><tbody>${
+  us.map(u=>`<tr><td><b>${esc(u.usuario)}</b></td><td>${esc(u.nombre)}</td><td class=m>${u.email?esc(u.email):'<span class="badge b-EN">Sin correo</span>'}</td><td>${ROLES[u.rol]||esc(u.rol)}</td><td><span class="badge ${u.activo?"b-ok":"b-bad"}">${u.activo?"Activo":"Inactivo"}</span></td><td class=m>${esc(fdt(u.ultimo_ingreso))}</td>
+  <td class=n><button class="btn" data-ed="${u.id}">Editar</button> <button class="btn" data-pw="${u.id}">Cambiar contraseña</button> ${u.usuario==S.user.usuario?"":`<button class="btn dan" data-rm="${u.id}">Eliminar</button>`}</td></tr>`).join("")}</tbody></table></div>
   <div class="foot">El rol <b>Consulta</b> ve los informes y la Consulta PVP. El rol <b>Administrador</b> además carga archivos, edita el calendario y gestiona usuarios.</div></div>`;
- const abrir=u=>{S.uEdit=u||null;$("uTitle").textContent=u?"Editar usuario":"Nuevo usuario";$("uUser").value=u?u.usuario:"";$("uName").value=u?u.nombre:"";$("uRol").value=u?u.rol:"consulta";$("uAct").checked=u?u.activo:true;$("uPass").value="";
+ const abrir=u=>{S.uEdit=u||null;$("uTitle").textContent=u?"Editar usuario":"Nuevo usuario";$("uUser").value=u?u.usuario:"";$("uName").value=u?u.nombre:"";$("uEmail").value=u&&u.email||"";$("uRol").value=u?u.rol:"consulta";$("uAct").checked=u?u.activo:true;$("uPass").value="";
   $("uPassLbl").textContent=u?"Nueva contraseña (vacío = no cambiar)":"Contraseña (mín. 6)";$("uPass").required=!u;$("mUsr").classList.remove("hidden");};
  $("uNew").onclick=()=>abrir();
  box.querySelectorAll("[data-ed]").forEach(b=>b.onclick=()=>abrir(us.find(u=>u.id==b.dataset.ed)));
+ box.querySelectorAll("[data-pw]").forEach(b=>b.onclick=()=>{S.uReset=us.find(u=>u.id==b.dataset.pw);$("fReset").reset();$("rTitle").textContent="Cambiar contraseña — "+S.uReset.nombre+" ("+S.uReset.usuario+")";$("mReset").classList.remove("hidden");$("rN").focus();});
  box.querySelectorAll("[data-rm]").forEach(b=>b.onclick=async()=>{const u=us.find(x=>x.id==b.dataset.rm);if(!confirm(`¿Eliminar el usuario ${u.usuario}?`))return;try{await rpc("pa_usuario_eliminar",tk({p_id:u.id}));toast("Usuario eliminado");admUsuarios();}catch(e){toast(e.message,true);}});
 }
+/* Contraseña aleatoria legible (sin 0/O, 1/l/I) */
+$("rGen").onclick=()=>{const A="abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";const b=new Uint32Array(10);crypto.getRandomValues(b);const p=[...b].map(x=>A[x%A.length]).join("");$("rN").value=p;$("rN2").value=p;};
+$("fReset").onsubmit=async e=>{e.preventDefault();const u=S.uReset;if(!u)return;
+ if($("rN").value!==$("rN2").value){toast("La contraseña y su confirmación no coinciden",true);return;}
+ try{await rpc("pa_usuario_guardar",tk({p_id:u.id,p_usuario:u.usuario,p_nombre:u.nombre,p_rol:u.rol,p_activo:u.activo,p_pass:$("rN").value,p_email:u.email||null}));
+  $("mReset").classList.add("hidden");toast("Contraseña de "+u.usuario+" actualizada");}catch(err){toast(err.message,true);}};
 $("fUsr").onsubmit=async e=>{e.preventDefault();const u=S.uEdit;
- try{await rpc("pa_usuario_guardar",tk({p_id:u?u.id:null,p_usuario:$("uUser").value,p_nombre:$("uName").value,p_rol:$("uRol").value,p_activo:$("uAct").checked,p_pass:$("uPass").value||null}));
+ try{await rpc("pa_usuario_guardar",tk({p_id:u?u.id:null,p_usuario:$("uUser").value,p_nombre:$("uName").value,p_rol:$("uRol").value,p_activo:$("uAct").checked,p_pass:$("uPass").value||null,p_email:$("uEmail").value.trim()||null}));
   $("mUsr").classList.add("hidden");toast(u?"Usuario actualizado":"Usuario creado");admUsuarios();}catch(err){toast(err.message,true);}};
 
 /* Log de sincronización */
