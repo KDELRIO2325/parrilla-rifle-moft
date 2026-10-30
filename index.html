@@ -89,6 +89,7 @@ h1{font-size:24px;margin:4px 0 2px;font-weight:600;color:var(--navy)}.desc{color
 .gl{stroke:var(--line);stroke-dasharray:3 4}.ax{fill:var(--mut);font-size:12px}
 rect.b{fill:var(--navy);cursor:pointer;transition:fill .15s}rect.b:hover{fill:var(--navy3)}rect.b.on{fill:var(--amber)}
 rect.b.tl{fill:var(--teal);cursor:default}rect.b.tl:hover{fill:#357b85}rect.b.nc{cursor:default}
+.prom{stroke:var(--amber);stroke-width:2;stroke-dasharray:7 5}.promb{fill:var(--amber)}.promt{fill:var(--side);font-size:12px;font-weight:600}
 .bv{fill:var(--ink);font-size:13px;font-weight:600}.bp{fill:var(--mut);font-size:11px}
 .donut{display:flex;flex-direction:column;align-items:center;gap:14px}.donut svg{width:190px;height:190px}
 .donut path{cursor:pointer;transition:opacity .15s}.donut path:hover{opacity:.85}
@@ -127,6 +128,11 @@ tbody tr.ck{cursor:pointer}tbody tr.ck:hover td{background:var(--hover)}tbody tr
 tr.warn td{color:var(--red)}
 .rk{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:6px;background:var(--soft);font-size:11px;color:var(--mut);font-weight:600}
 tr:nth-child(-n+3) .rk{background:var(--navy);color:#fff}
+/* columnas fijas al desplazar la tabla hacia los lados (el encabezado ya queda fijo arriba) */
+.fija{position:sticky;z-index:2;background:var(--card)}th.fija{z-index:3;background:var(--soft)}
+.fija.ult{box-shadow:6px 0 6px -5px rgba(16,34,65,.22)}
+tbody tr.ck:hover td.fija{background:var(--hover)}tbody tr.sel td.fija{background:var(--sel)}
+#tProv{max-height:560px}
 .tot td{font-weight:700;color:var(--navy);border-bottom:0;border-top:2px solid var(--navy);background:var(--card)}
 .tc{border-left:1px solid var(--line)}
 .share{display:flex;align-items:center;gap:8px;justify-content:flex-end}.share .trk{width:60px;height:6px}.share .trk div{background:var(--amber)}
@@ -486,7 +492,7 @@ function catComparativo(R,T,AA){
 function hlist(id,k,R,T,warnV,G){G=G||group(R,k);const mx=G.length?G[0].u:1;
  $(id).innerHTML=G.map(g=>`<div class="hr ${k&&isSel(k,g.v)?"on":""} ${g.v==warnV?"warn":""}" ${k?`data-k="${k}" data-v="${esc(g.v)}"`:""}><div class="lb">${esc(g.label||g.v)}<small>${g.refs.size} ref · ${g.n} líneas</small></div><div class="trk"><div style="width:${(100*g.u/(mx||1)).toFixed(1)}%"></div></div><div class="u">${fmt(g.u)}</div><div class="p">${pc(g.u,T)}</div></div>`).join("")||'<div class="m">Sin datos</div>';}
 const COLORS=["#13294b","#e8a33d","#3f8f9b","#8792a6","#c8423b","#6b5ca5"];
-function barras(Q,T,{k,cls="",lab=v=>v,val=fmt,tip="",ancho=640}={}){const small=Q.length>14;if(small)val=fmtC;const W=small?Math.max(ancho,Q.length*50):ancho,H=300,pl=44,pr=6,pb=28,pt=34;
+function barras(Q,T,{k,cls="",lab=v=>v,val=fmt,tip="",ancho=640,prom=null}={}){const small=Q.length>14;if(small)val=fmtC;const W=small?Math.max(ancho,Q.length*50):ancho,H=300,pl=44,pr=6,pb=28,pt=34;
  const mxv=Math.max(1,...Q.map(q=>q.u));const step=Math.pow(10,Math.floor(Math.log10(mxv)));const nice=Math.ceil(mxv/step)*step;const ticks=[0,.25,.5,.75,1].map(t=>t*nice);
  const bw=Q.length?(W-pl-pr)/Q.length:0;const y=v=>H-pb-(H-pb-pt)*v/nice;
  let s=`<svg viewBox="0 0 ${W} ${H}" ${small?`style="width:${W}px;max-width:none"`:""}>`+ticks.map(t=>`<line class=gl x1=${pl} x2=${W-pr} y1=${y(t)} y2=${y(t)} /><text class=ax x=${pl-8} y=${y(t)+4} text-anchor=end>${t>=1000?fmt(t/1000)+"k":fmt(t)}</text>`).join("");
@@ -494,7 +500,15 @@ function barras(Q,T,{k,cls="",lab=v=>v,val=fmt,tip="",ancho=640}={}){const small
   s+=`<rect class="b ${cls} ${k&&isSel(k,q.v)?"on":""}" ${k?`data-k="${k}" data-v="${esc(q.v)}"`:""} x="${x}" y="${yy}" width="${w}" height="${Math.max(H-pb-yy,q.u?1:0)}" rx="5"><title>${esc(tip+lab(q.v))}: ${fmt(q.u)} und · ${pc(q.u,T)}</title></rect>`+
    (q.u?`<text class=bv x="${x+w/2}" y="${yy-(small?6:16)}" text-anchor=middle ${small?'font-size="10"':''}>${val(q.u)}</text>`+(small?"":`<text class=bp x="${x+w/2}" y="${yy-4}" text-anchor=middle>${pc(q.u,T)}</text>`):"")+
    `<text class=ax x="${x+w/2}" y="${H-8}" text-anchor=middle ${small?'font-size="10"':''}>${esc(lab(q.v))}</text>`;});
+ /* línea punteada de promedio, dibujada encima de las barras */
+ if(prom)s+=`<line class=prom x1=${pl} x2=${W-pr} y1=${y(prom)} y2=${y(prom)} /><rect class=promb x=${pl+4} y=${y(prom)-24} width=146 height=20 rx=10 /><text class=promt x=${pl+77} y=${y(prom)-10} text-anchor=middle>Promedio ${fmtC(prom)}</text>`;
  return s+"</svg>";}
+
+/* Deja fijas las primeras n columnas de una tabla al desplazarla hacia los lados.
+   Mide el ancho real de cada columna del encabezado para saber dónde anclar la siguiente. */
+function fijarColumnas(cont,n){const t=cont.querySelector("table");if(!t)return;
+ const hd=[...t.rows[0].cells].slice(0,n);let x=0;const lefts=hd.map(c=>{const l=x;x+=c.offsetWidth;return l;});
+ [...t.rows].forEach(tr=>{let col=0;for(const c of tr.cells){if(col>=n)break;c.classList.add("fija");c.classList.toggle("ult",col==n-1);c.style.left=lefts[col]+"px";col+=c.colSpan||1;}});}
 
 /* ══ TAB 1: INFORME ═════════════════════════════════════ */
 function renderInforme(){
@@ -536,12 +550,12 @@ function renderInforme(){
  const qt={};R.forEach(r=>qt[r[I.paq]]=(qt[r[I.paq]]||0)+r[I.u]);
  h+=`<tr class=tot><td></td><td>Total</td>${PQ.map(q=>`<td class=n>${fmt(qt[q]||0)}</td>`).join("")}<td class="n tc">${fmt(T)}</td><td class=n>100%</td><td></td><td class=n>${nref}</td><td></td>${PP?`<td class="n cmpc">${fmt(AA.TP)}</td><td class="n cmpc">${varHtml(T,AA.TP)}</td>`:""}</tr>`;
  h+=`<tr><td></td><td class=m>% del total</td>${PQ.map(q=>`<td class="n m">${pc(qt[q]||0,T)}</td>`).join("")}<td colspan=${5+nc}></td></tr></tbody></table>`;
- $("tProv").innerHTML=h;$("pvn").textContent=P.length+(P.length==1?" proveedor":" proveedores")+(PP?` · vs parrilla ${AA.Y-1}${AA.nota}`:"");
+ $("tProv").innerHTML=h;fijarColumnas($("tProv"),2);$("pvn").textContent=P.length+(P.length==1?" proveedor":" proveedores")+(PP?` · vs parrilla ${AA.Y-1}${AA.nota}`:"");
  const DR=[...R].sort((a,b)=>b[I.u]-a[I.u]);const L=400;
  let d=`<table><thead><tr><th>Ref</th><th>Color</th><th>Cód. Pantone</th><th>Marca</th><th>Año</th><th>COL</th><th>Paq</th><th>Categoría</th><th>Línea</th><th>Canal</th><th>Proveedor</th><th>Nuevo/Repos.</th><th>Estado</th><th class=n>Und</th><th class=n>PVP IVA final</th><th>N° orden de compra</th><th>Fecha OC</th></tr></thead><tbody>`;
  const pvpCel=r=>!r[I.pvp]?'<span class=dot>—</span>':r[I.pvpok]?`<span class="pvok" title="PVP confirmado">$ ${fmt(r[I.pvp])}</span>`:`<span class="pvno" title="PVP sin confirmar: puede cambiar">$ ${fmt(r[I.pvp])}</span>`;
  DR.slice(0,L).forEach(r=>{const e=r[I.est];d+=`<tr class="${e=="CANCELADO"?"canc":""}"><td><b>${esc(r[I.ref])}</b></td><td>${esc(r[I.color])}</td><td class=m>${esc(r[I.pant])}</td><td>${esc(r[I.marca])}</td><td>${esc(r[I.anio])}</td><td>${esc(r[I.col])}</td><td>${esc(r[I.paq])}</td><td>${esc(r[I.cat])}</td><td>${esc(r[I.lin])}</td><td>${esc(r[I.can])}</td><td>${esc(r[I.prov])}</td><td>${esc(r[I.nra])}</td><td><span class="badge b-${esc(e.split(/[ /]/)[0])}">${esc(e)}</span></td><td class=n><b>${fmt(r[I.u])}</b></td><td class=n>${pvpCel(r)}</td><td>${esc(r[I.oc])||'<span class=dot>—</span>'}</td><td>${esc(r[I.foc])||'<span class=dot>—</span>'}</td></tr>`;});
- $("tDet").innerHTML=d+"</tbody></table>";$("dn").textContent=R.length>L?`${L} de ${R.length} líneas`:`${R.length} líneas`;
+ $("tDet").innerHTML=d+"</tbody></table>";fijarColumnas($("tDet"),3);$("dn").textContent=R.length>L?`${L} de ${R.length} líneas`:`${R.length} líneas`;
 }
 $("bXls").onclick=()=>{const R=rows().map(r=>[r[I.marca],r[I.anio],r[I.col],r[I.paq],r[I.prov],r[I.cat],r[I.lin],r[I.can],r[I.ref],r[I.color],r[I.pant],r[I.nra],r[I.est],r[I.u],r[I.pvp]||"",r[I.pvp]?(r[I.pvpok]?"Sí":"No"):"",r[I.oc],r[I.foc]]);
  const ws=XLSX.utils.aoa_to_sheet([["Marca","Año","COL","Paquete","Proveedor","Categoría","Línea","Canal","Referencia","Color","Cód. Pantone","Nuevo/Reposición","Estado","Unidades","PVP IVA final","PVP confirmado","N° orden de compra","Fecha OC"],...R]);
@@ -574,8 +588,11 @@ function renderIngreso(){
  $("kpis2").innerHTML=[["Unidades parrilla",fmt(TV),"box"],["Ingresan el año anterior a su parrilla",fmt(antes)+" und","dn"],["Mes pico de venta",pv==null?"—":labL(pv)+" · "+fmtC(V.get(pv)),"cal"],["Mes pico de ingreso",pg==null?"—":labL(pg)+" · "+fmtC(G.get(pg)),"cal"]]
   .map(([l,v,ic])=>`<div class="card kpi"><div><small>${l}</small><b>${v}</b></div><div class="ico">${svg(ic)}</div></div>`).join("");
  const Qv=K.map(k=>({v:k,u:V.get(k)||0})),Qg=K.map(k=>({v:k,u:G.get(k)||0}));
- $("chartV").innerHTML=barras(Qv,TV,{cls:"nc",lab,val:fmtC,ancho:1100,tip:""});$("vTag").textContent="Total "+fmt(TV)+" und";
- $("chartG").innerHTML=barras(Qg,TG,{cls:"tl",lab,val:fmtC,ancho:1100,tip:""});$("gTag").textContent="Total "+fmt(TG)+" und";
+ /* promedio mensual: solo meses con unidades (en venta, Dic del año anterior queda en 0 y no cuenta) */
+ const prm=Q=>{const c=Q.filter(q=>q.u>0);return c.length?{v:c.reduce((s,q)=>s+q.u,0)/c.length,n:c.length}:null;};const pV=prm(Qv),pG=prm(Qg);
+ const tagP=p=>p?` · Promedio ${fmt(p.v)} und/mes (${p.n} ${p.n==1?"mes":"meses"})`:"";
+ $("chartV").innerHTML=barras(Qv,TV,{cls:"nc",lab,val:fmtC,ancho:1100,tip:"",prom:pV&&pV.v});$("vTag").textContent="Total "+fmt(TV)+" und"+tagP(pV);
+ $("chartG").innerHTML=barras(Qg,TG,{cls:"tl",lab,val:fmtC,ancho:1100,tip:"",prom:pG&&pG.v});$("gTag").textContent="Total "+fmt(TG)+" und"+tagP(pG);
  const ordK=s=>{const y=+(s.match(/\((\d{4})\)$/)||[0,0])[1];return y*1000+paqKey(s.replace(/^\D+\s/,""));};
  const lst=m=>m?[...m.entries()].sort((a,b)=>ordK(a[0])-ordK(b[0])||a[0].localeCompare(b[0])).map(([k,u])=>`${esc(k)} <span class=dot>${fmtC(u)}</span>`).join(" + "):'<span class=dot>—</span>';
  let h=`<table><thead><tr><th>Mes</th><th>Paquetes presupuesto venta</th><th class=n>Ppto venta</th><th>Paquetes que ingresan</th><th class=n>Ppto ingreso</th><th class=n>Diferencia</th><th>Fecha entrega</th></tr></thead><tbody>`;
