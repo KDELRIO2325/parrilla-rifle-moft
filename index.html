@@ -144,6 +144,9 @@ tr.canc td{color:var(--mut)}tr.canc td b{text-decoration:line-through}
 .sy-ok{background:#e6f4ee;color:var(--green)}.sy-w{background:#fdf1dc;color:#9a6512}.sy-e{background:#fbe7e5;color:var(--red)}
 .pvok{display:inline-block;background:#daf2d0;color:#1f5f33;border-radius:6px;padding:2px 8px;font-weight:600}
 .pvno{display:inline-block;padding:2px 8px;color:var(--ink);border:1px dashed #c8ceda;border-radius:6px}
+/* columnas de curva de tallas (fondo verde agua) y botón activo */
+th.cvz{white-space:normal;min-width:66px;line-height:1.25;background:#ddeff1!important;color:#2c6670}td.cvz{background:#f1f8f9}
+.btn.tog.on{background:var(--teal);border-color:var(--teal);color:#fff}
 .leyenda{display:flex;gap:10px;align-items:center;font-size:11px;color:var(--mut)}
 .pos{color:var(--green)}.neg{color:var(--red)}
 .foot{margin-top:18px;font-size:11.5px;color:var(--mut)}
@@ -250,8 +253,8 @@ tr.canc td{color:var(--mut)}tr.canc td b{text-decoration:line-through}
    <div class="card"><div class="ch"><h3>Nuevo / Reposición</h3></div><div class="hl cmp" id="lNra"></div></div>
    <div class="card"><div class="ch"><h3>Estado</h3></div><div class="hl cmp" id="lEst"></div></div>
   </div>
-  <div class="card det"><div class="ch"><h3>Detalle de referencias</h3><span class="leyenda">PVP: <span class="pvok">$ confirmado</span><span class="pvno">$ sin confirmar</span></span><span><span class="tag" id="dn"></span> <button class="btn" id="bXls">Descargar Excel</button></span></div><div class="tw" style="max-height:560px" id="tDet"></div></div>
-  <div class="foot">Normalización: espacios eliminados; razón social unificada (TEXTILES ACRILAN LTDA → ACRILAN, INVER JEANS S.A.S → INVERJEANS…); TEEXTIFULL → TEXTIFULL; tenis agrupados como "CALZADO"; DYN/TEXTIFULL separado; estado vacío = ACTIVO. Vista inicial: año vigente, sin Fragancias y sin CANCELADO (ajustable en el panel izquierdo).</div>
+  <div class="card det"><div class="ch"><h3>Detalle de referencias</h3><span class="leyenda">PVP: <span class="pvok">$ confirmado</span><span class="pvno">$ sin confirmar</span></span><span><span class="tag" id="dn"></span> <button class="btn tog" id="bCur" title="Mostrar u ocultar la curva de tallas junto a las unidades">Curvas</button> <button class="btn" id="bXls">Descargar Excel</button></span></div><div class="tw" style="max-height:560px" id="tDet"></div></div>
+  <div class="foot">Normalización: espacios eliminados; razón social unificada (TEXTILES ACRILAN LTDA → ACRILAN, INVER JEANS S.A.S → INVERJEANS…); TEEXTIFULL → TEXTIFULL; tenis agrupados como "CALZADO"; DYN/TEXTIFULL separado; estado vacío = ACTIVO. Vista inicial: año vigente, sin Fragancias, sin calzado (Tenis) y sin CANCELADO (ajustable en el panel izquierdo).</div>
   </div>
  </section>
 
@@ -356,8 +359,9 @@ function dinero(v){if(v==null||v==="")return 0;if(typeof v=="number")return Math
  s=(last>=0&&dec>=1&&dec<=2)?s.slice(0,last).replace(/[.,]/g,"")+"."+s.slice(last+1):s.replace(/[.,]/g,"");const n=parseFloat(s);return isNaN(n)?0:Math.round(n);}
 const CAMPOS={can:"CANAL",paq:"PAQREAL",est:"ESTADO",lin:"LINEA",cat:"CATEGORIA",ref:"REFERENCIADISENO",color:"NOMBRECOLOR",prov:"PROVEEDOR",nra:"NUEVO/REPOSICION/ADICION",u:"UNIDADES",temp:"TEMPORADA",pvp:"PVPIVAFINAL",
  pant:"COD.PANTONE",oc:"NUMEROORDENDECOMPRA",foc:"FECHAORDENDECOMPRA"};
-/* Orden de columnas guardadas: 13 textos y luego pvpok, pvp, u. "u" siempre al final (Supabase suma el último valor como unidades). */
-const COLS=["col","paq","prov","cat","lin","can","ref","color","nra","est","pant","oc","foc","pvpok","pvp","u"];
+/* Orden de columnas guardadas: 13 textos, la curva (lista de unidades por talla, en el orden de datos.tallas)
+   y luego pvpok, pvp, u. "u" siempre al final (Supabase suma el último valor como unidades). */
+const COLS=["col","paq","prov","cat","lin","can","ref","color","nra","est","pant","oc","foc","cur","pvpok","pvp","u"];
 /* Fecha: número de Excel → dd/mm/aaaa; texto se deja igual. Igual a Fecha-Txt en sync_parrillas.ps1 */
 function fechaTxt(v){if(typeof v=="number"){if(v<1000)return"";const d=new Date(Math.round((Math.floor(v)-25569)*864e5));return String(d.getUTCDate()).padStart(2,"0")+"/"+String(d.getUTCMonth()+1).padStart(2,"0")+"/"+d.getUTCFullYear();}
  const t=limpio(v);return t=="0"||/^#+$/.test(t)?"":t;}
@@ -366,7 +370,7 @@ function codigoTxt(v){if(typeof v=="number")return v?String(Math.round(v)):"";co
 function esVerde(cell){const s=cell&&cell.s;if(!s||s.patternType!="solid"||!s.fgColor||!s.fgColor.rgb)return 0;const h=s.fgColor.rgb.slice(-6);
  const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);return g>r+15&&g>b+15?1:0;}
 function parsearLibro(wb){
- const filas=[],hojas=[];
+ const filas=[],hojas=[],tallas=[];
  wb.SheetNames.forEach(name=>{
   const ws=wb.Sheets[name];if(!ws["!ref"])return;const rg=XLSX.utils.decode_range(ws["!ref"]);
   const A=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null,blankrows:true});
@@ -375,6 +379,7 @@ function parsearLibro(wb){
    if("PAQREAL"in m&&"UNIDADES"in m&&"PROVEEDOR"in m){hdr=r;idx=m;}}
   if(hdr<0)return;
   const mc=name.match(/^\s*COL\s*(\d+)/i);const colHoja=mc?"COL "+(+mc[1]):null;let n=0;
+  const SZ=tallasHoja(A,hdr,tallas);
   for(let r=hdr+1;r<A.length;r++){const row=A[r]||[];const g=k=>{const c=idx[CAMPOS[k]];return c==null?null:row[c];};
    const ref=limpio(g("ref")).toUpperCase();if(!ref)continue;
    let col=colHoja;if(!col){const t=limpio(g("temp"));const mt=t.match(/^(\d+)\s*-\s*\d{4}/);col=mt?"COL "+(+mt[1]):"SIN COL";}
@@ -386,20 +391,36 @@ function parsearLibro(wb){
    const pvp=dinero(g("pvp"));const pc_=idx[CAMPOS.pvp];
    const pvpok=pvp>0&&pc_!=null?esVerde(ws[XLSX.utils.encode_cell({r:rg.s.r+r,c:rg.s.c+pc_})]):0;
    let pant=limpio(g("pant")).toUpperCase();if(pant=="0")pant="";
-   filas.push([col,paq,prov,cat,titulo(limpio(g("lin"))),can,ref,limpio(g("color")).toUpperCase(),normNra(limpio(g("nra"))),est,pant,codigoTxt(g("oc")),fechaTxt(g("foc")),pvpok,pvp,unidades(g("u"))]);n++;}
+   filas.push([col,paq,prov,cat,titulo(limpio(g("lin"))),can,ref,limpio(g("color")).toUpperCase(),normNra(limpio(g("nra"))),est,pant,codigoTxt(g("oc")),fechaTxt(g("foc")),curvaFila(row,SZ,tallas.length),pvpok,pvp,unidades(g("u"))]);n++;}
   hojas.push(name+": "+n+" filas");});
- return {filas,hojas};}
+ filas.forEach(f=>{const c=f[13];while(c.length<tallas.length)c.push(0);});   /* todas las curvas con el mismo largo */
+ return {filas,hojas,tallas};}
+/* Curva de tallas. Columnas de talla = las que siguen a "TALLAS" con encabezado corto (S, M, XL, "." o XS/6/.).
+   Etiqueta = la fila "Curvas" encima del encabezado (fila 5, 11 o 12 según la hoja); si no existe (Moft), el
+   mismo encabezado. Columnas con etiqueta "." o vacía no se usan. Igual a Tallas-Hoja en sync_parrillas.ps1 */
+const RX_TALLA=/^(\.|[A-Z]{1,3}|[A-Z]{1,3}\/[A-Z0-9.]*\/[A-Z0-9.]*)$/;
+function tallasHoja(A,hdr,tallas){const H=A[hdr]||[];let t=-1;
+ for(let c=0;c<H.length;c++)if(normEnc(H[c])=="TALLAS"&&RX_TALLA.test(normEnc(H[c+1]))){t=c;break;}
+ if(t<0)return[];
+ let cr=-1;for(let r=hdr-1;r>=Math.max(0,hdr-10)&&cr<0;r--)if((A[r]||[]).some(v=>normEnc(v)=="CURVAS"))cr=r;
+ const out=[];for(let c=t+1;c<H.length&&RX_TALLA.test(normEnc(H[c]));c++){
+  const lab=limpio(cr>=0?A[cr][c]:H[c]);if(!lab||lab==".")continue;
+  let i=tallas.indexOf(lab);if(i<0){tallas.push(lab);i=tallas.length-1;}out.push({c,i});}
+ return out;}
+function curvaFila(row,SZ,n){const a=new Array(n).fill(0);SZ.forEach(s=>{a[s.i]=unidades(row[s.c]);});return a;}
 
 /* ══ DATOS ══════════════════════════════════════════════ */
-const I={marca:0,anio:1,col:2,paq:3,prov:4,cat:5,lin:6,can:7,ref:8,color:9,nra:10,est:11,u:12,pvp:13,pant:14,oc:15,foc:16,pvpok:17};
+const I={marca:0,anio:1,col:2,paq:3,prov:4,cat:5,lin:6,can:7,ref:8,color:9,nra:10,est:11,u:12,pvp:13,pant:14,oc:15,foc:16,pvpok:17,cur:18};
 const NUM=new Set(["u","pvp","pvpok"]);
+/* S.TAL["Rifle|2026"] = etiquetas de talla de esa parrilla; la curva de cada fila va en el mismo orden */
 async function cargarDatos(){
  const [rows,cal]=await Promise.all([rpc("pa_parrillas_datos",tk()),rpc("pa_calendario_listar",tk())]);
- S.D=[];S.meta=[];
+ S.D=[];S.meta=[];S.TAL={};
  (rows||[]).forEach(p=>{const d=p.datos||{};const ci=(d.cols||[]);const ix=k=>ci.indexOf(k);
-  const campos=["col","paq","prov","cat","lin","can","ref","color","nra","est","u","pvp","pant","oc","foc","pvpok"];const map=campos.map(ix);
+  const campos=["col","paq","prov","cat","lin","can","ref","color","nra","est","u","pvp","pant","oc","foc","pvpok","cur"];const map=campos.map(ix);
+  S.TAL[p.marca+"|"+p.anio]=d.tallas||[];
   /* datos guardados antes de agregar una columna nueva: se rellena con vacío / 0 */
-  (d.rows||[]).forEach(r=>S.D.push([p.marca,String(p.anio),...map.map((i,j)=>i<0?(NUM.has(campos[j])?0:""):r[i])]));
+  (d.rows||[]).forEach(r=>S.D.push([p.marca,String(p.anio),...map.map((i,j)=>i<0?(campos[j]=="cur"?[]:NUM.has(campos[j])?0:""):r[i])]));
   S.meta.push({marca:p.marca,anio:p.anio,actualizado_en:p.actualizado_en});});
  S.cal={};(cal||[]).forEach(c=>S.cal[c.marca+"|"+c.anio+"|"+c.paq]=c);
 }
@@ -427,7 +448,9 @@ const active=k=>!!F[k]&&(OPT[k]||[]).some(v=>!pass(k,v));
 const isSel=(k,v)=>F[k]&&F[k].t=="in"&&F[k].s.size<=(OPT[k]||[]).length/2&&F[k].s.has(v);
 const fKey=f=>!f?"":f.t+":"+[...f.s].sort().join("|");
 function anioVigente(){const ys=[...new Set(S.D.map(r=>r[I.anio]))].sort();const y=String(new Date().getFullYear());return ys.includes(y)?y:ys.filter(x=>x<=y).pop()||ys[0];}
-function defaults(){const y=anioVigente();return{marca:null,anio:y?{t:"in",s:new Set([y])}:null,cat:{t:"ex",s:new Set(["Fragancias"])},est:{t:"ex",s:new Set(["CANCELADO"])}};}
+/* Vista inicial: año vigente, sin Fragancias, sin calzado (categorías Tenis…) y sin CANCELADO */
+function defaults(){const y=anioVigente();const fuera=new Set(["Fragancias",...S.D.map(r=>r[I.cat]).filter(c=>/^tenis/i.test(c))]);
+ return{marca:null,anio:y?{t:"in",s:new Set([y])}:null,cat:{t:"ex",s:fuera},est:{t:"ex",s:new Set(["CANCELADO"])}};}
 function reset(){DEF=defaults();DIMS.forEach(([k])=>F[k]=DEF[k]?{t:DEF[k].t,s:new Set(DEF[k].s)}:null);REF="";$("fref").value="";}
 function rowsBase(skip){return S.D.filter(r=>(skip=="marca"||pass("marca",r[I.marca]))&&(skip=="anio"||pass("anio",r[I.anio])));}
 function calcOpt(){const base=rowsBase();DIMS.forEach(([k])=>{const src=k=="marca"||k=="anio"?S.D:base;OPT[k]=sortVals(k,[...new Set(src.map(r=>r[I[k]]))]);});}
@@ -552,13 +575,26 @@ function renderInforme(){
  h+=`<tr><td></td><td class=m>% del total</td>${PQ.map(q=>`<td class="n m">${pc(qt[q]||0,T)}</td>`).join("")}<td colspan=${5+nc}></td></tr></tbody></table>`;
  $("tProv").innerHTML=h;fijarColumnas($("tProv"),2);$("pvn").textContent=P.length+(P.length==1?" proveedor":" proveedores")+(PP?` · vs parrilla ${AA.Y-1}${AA.nota}`:"");
  const DR=[...R].sort((a,b)=>b[I.u]-a[I.u]);const L=400;
- let d=`<table><thead><tr><th>Ref</th><th>Color</th><th>Cód. Pantone</th><th>Marca</th><th>Año</th><th>COL</th><th>Paq</th><th>Categoría</th><th>Línea</th><th>Canal</th><th>Proveedor</th><th>Nuevo/Repos.</th><th>Estado</th><th class=n>Und</th><th class=n>PVP IVA final</th><th>N° orden de compra</th><th>Fecha OC</th></tr></thead><tbody>`;
+ /* Curvas de tallas: columnas ocultas junto a "Und"; se muestran con el botón "Curvas" */
+ const TL=S.verCurvas?tallasDe(R):[];
+ const thCur=S.verCurvas?TL.map(t=>`<th class="n cvz">${esc(t)}</th>`).join("")+`<th class="n cvz">Total curva</th>`:"";
+ const tdCur=r=>{if(!S.verCurvas)return"";const s=sumaCurva(r);
+  return TL.map(t=>{const v=curva(r,t);return`<td class="n cvz">${v?fmt(v):'<span class=dot>—</span>'}</td>`;}).join("")+
+   `<td class="n cvz">${!s?'<span class=dot>—</span>':s==r[I.u]?fmt(s):`<span class="neg" title="La curva suma ${fmt(s)} y la referencia tiene ${fmt(r[I.u])} und">⚠ ${fmt(s)}</span>`}</td>`;};
+ let d=`<table><thead><tr><th>Ref</th><th>Color</th><th>Cód. Pantone</th><th>Marca</th><th>Año</th><th>COL</th><th>Paq</th><th>Categoría</th><th>Línea</th><th>Canal</th><th>Proveedor</th><th>Nuevo/Repos.</th><th>Estado</th><th class=n>Und</th>${thCur}<th class=n>PVP IVA final</th><th>N° orden de compra</th><th>Fecha OC</th></tr></thead><tbody>`;
  const pvpCel=r=>!r[I.pvp]?'<span class=dot>—</span>':r[I.pvpok]?`<span class="pvok" title="PVP confirmado">$ ${fmt(r[I.pvp])}</span>`:`<span class="pvno" title="PVP sin confirmar: puede cambiar">$ ${fmt(r[I.pvp])}</span>`;
- DR.slice(0,L).forEach(r=>{const e=r[I.est];d+=`<tr class="${e=="CANCELADO"?"canc":""}"><td><b>${esc(r[I.ref])}</b></td><td>${esc(r[I.color])}</td><td class=m>${esc(r[I.pant])}</td><td>${esc(r[I.marca])}</td><td>${esc(r[I.anio])}</td><td>${esc(r[I.col])}</td><td>${esc(r[I.paq])}</td><td>${esc(r[I.cat])}</td><td>${esc(r[I.lin])}</td><td>${esc(r[I.can])}</td><td>${esc(r[I.prov])}</td><td>${esc(r[I.nra])}</td><td><span class="badge b-${esc(e.split(/[ /]/)[0])}">${esc(e)}</span></td><td class=n><b>${fmt(r[I.u])}</b></td><td class=n>${pvpCel(r)}</td><td>${esc(r[I.oc])||'<span class=dot>—</span>'}</td><td>${esc(r[I.foc])||'<span class=dot>—</span>'}</td></tr>`;});
+ DR.slice(0,L).forEach(r=>{const e=r[I.est];d+=`<tr class="${e=="CANCELADO"?"canc":""}"><td><b>${esc(r[I.ref])}</b></td><td>${esc(r[I.color])}</td><td class=m>${esc(r[I.pant])}</td><td>${esc(r[I.marca])}</td><td>${esc(r[I.anio])}</td><td>${esc(r[I.col])}</td><td>${esc(r[I.paq])}</td><td>${esc(r[I.cat])}</td><td>${esc(r[I.lin])}</td><td>${esc(r[I.can])}</td><td>${esc(r[I.prov])}</td><td>${esc(r[I.nra])}</td><td><span class="badge b-${esc(e.split(/[ /]/)[0])}">${esc(e)}</span></td><td class=n><b>${fmt(r[I.u])}</b></td>${tdCur(r)}<td class=n>${pvpCel(r)}</td><td>${esc(r[I.oc])||'<span class=dot>—</span>'}</td><td>${esc(r[I.foc])||'<span class=dot>—</span>'}</td></tr>`;});
  $("tDet").innerHTML=d+"</tbody></table>";fijarColumnas($("tDet"),3);$("dn").textContent=R.length>L?`${L} de ${R.length} líneas`:`${R.length} líneas`;
 }
-$("bXls").onclick=()=>{const R=rows().map(r=>[r[I.marca],r[I.anio],r[I.col],r[I.paq],r[I.prov],r[I.cat],r[I.lin],r[I.can],r[I.ref],r[I.color],r[I.pant],r[I.nra],r[I.est],r[I.u],r[I.pvp]||"",r[I.pvp]?(r[I.pvpok]?"Sí":"No"):"",r[I.oc],r[I.foc]]);
- const ws=XLSX.utils.aoa_to_sheet([["Marca","Año","COL","Paquete","Proveedor","Categoría","Línea","Canal","Referencia","Color","Cód. Pantone","Nuevo/Reposición","Estado","Unidades","PVP IVA final","PVP confirmado","N° orden de compra","Fecha OC"],...R]);
+/* Curvas: etiquetas de talla de las parrillas presentes en R (sin repetir) y unidades de una fila por etiqueta */
+function tallasDe(R){const out=[];[...new Set(R.map(r=>r[I.marca]+"|"+r[I.anio]))].forEach(k=>(S.TAL[k]||[]).forEach(t=>{if(!out.includes(t))out.push(t);}));return out;}
+const curva=(r,t)=>{const L=S.TAL[r[I.marca]+"|"+r[I.anio]]||[];const i=L.indexOf(t);return i<0?0:(+(r[I.cur]||[])[i]||0);};
+const sumaCurva=r=>(r[I.cur]||[]).reduce((s,v)=>s+(+v||0),0);
+$("bCur").onclick=()=>{S.verCurvas=!S.verCurvas;$("bCur").classList.toggle("on",S.verCurvas);render();
+ if(S.verCurvas){const th=$("tDet").querySelector("th.cvz");if(th)$("tDet").scrollLeft=Math.max(0,th.offsetLeft-420);}};
+$("bXls").onclick=()=>{const RR=rows();const TL=tallasDe(RR);
+ const R=RR.map(r=>[r[I.marca],r[I.anio],r[I.col],r[I.paq],r[I.prov],r[I.cat],r[I.lin],r[I.can],r[I.ref],r[I.color],r[I.pant],r[I.nra],r[I.est],r[I.u],...TL.map(t=>curva(r,t)||""),sumaCurva(r)||"",r[I.pvp]||"",r[I.pvp]?(r[I.pvpok]?"Sí":"No"):"",r[I.oc],r[I.foc]]);
+ const ws=XLSX.utils.aoa_to_sheet([["Marca","Año","COL","Paquete","Proveedor","Categoría","Línea","Canal","Referencia","Color","Cód. Pantone","Nuevo/Reposición","Estado","Unidades",...TL,"Total curva","PVP IVA final","PVP confirmado","N° orden de compra","Fecha OC"],...R]);
  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Parrilla");XLSX.writeFile(wb,"Parrilla_filtrada_"+new Date().toISOString().slice(0,10)+".xlsx");};
 
 /* ══ TAB 2: PARRILLA VS MES INGRESO ═════════════════════ */
@@ -722,7 +758,7 @@ async function subirArchivo(file,marca,anio){
  const tot=res.filas.reduce((s,r)=>s+r[r.length-1],0);
  if(!confirm(`Cargar "${file.name}" como parrilla ${marca} ${anio}?\n\n${res.hojas.join("\n")}\n\nTotal: ${fmt(res.filas.length)} líneas · ${fmt(tot)} unidades\n\nReemplaza los datos actuales de ${marca} ${anio}.`))return;
  loading(true);
- try{await rpc("pa_parrilla_guardar",tk({p_marca:marca,p_anio:anio,p_archivo:file.name,p_datos:{cols:COLS,rows:res.filas}}));
+ try{await rpc("pa_parrilla_guardar",tk({p_marca:marca,p_anio:anio,p_archivo:file.name,p_datos:{cols:COLS,rows:res.filas,tallas:res.tallas}}));
   await cargarDatos();extraSlots=extraSlots.filter(x=>!(x.marca==marca&&x.anio==anio));toast(`Parrilla ${marca} ${anio} actualizada (${fmt(res.filas.length)} líneas)`);}
  catch(e){toast("Error al guardar: "+e.message,true);}
  loading(false);admArchivos();}
