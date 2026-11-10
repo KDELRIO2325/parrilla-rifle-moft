@@ -575,19 +575,24 @@ function renderInforme(){
  h+=`<tr class=tot><td></td><td>Total</td>${PQ.map(q=>`<td class=n>${fmt(qt[q]||0)}</td>`).join("")}<td class="n tc">${fmt(T)}</td><td class=n>100%</td><td></td><td class=n>${nref}</td><td></td>${PP?`<td class="n cmpc">${fmt(AA.TP)}</td><td class="n cmpc">${varHtml(T,AA.TP)}</td>`:""}</tr>`;
  h+=`<tr><td></td><td class=m>% del total</td>${PQ.map(q=>`<td class="n m">${pc(qt[q]||0,T)}</td>`).join("")}<td colspan=${5+nc}></td></tr></tbody></table>`;
  $("tProv").innerHTML=h;fijarColumnas($("tProv"),2);$("pvn").textContent=P.length+(P.length==1?" proveedor":" proveedores")+(PP?` · vs parrilla ${AA.Y-1}${AA.nota}`:"");
- const DR=[...R].sort((a,b)=>b[I.u]-a[I.u]);const L=400;
+ const DR=ordenDetalle(R);const L=400;
  /* Curvas de tallas: columnas ocultas junto a "Und"; se muestran con el botón "Curvas" */
  const TL=S.verCurvas?tallasDe(R):[];
  const thCur=S.verCurvas?TL.map(t=>`<th class="n cvz">${esc(t)}</th>`).join("")+`<th class="n cvz">Total curva</th>`:"";
  const tdCur=r=>{if(!S.verCurvas)return"";const s=sumaCurva(r);
   return TL.map(t=>{const v=curva(r,t);return`<td class="n cvz">${v?fmt(v):'<span class=dot>—</span>'}</td>`;}).join("")+
    `<td class="n cvz">${!s?'<span class=dot>—</span>':s==r[I.u]?fmt(s):`<span class="neg" title="La curva suma ${fmt(s)} y la referencia tiene ${fmt(r[I.u])} und">⚠ ${fmt(s)}</span>`}</td>`;};
- /* orden: Marca, Año, COL, Paq, Categoría, Ref (fijas hasta Ref), Canal y luego el resto */
- let d=`<table><thead><tr><th>Marca</th><th>Año</th><th>COL</th><th>Paq</th><th>Categoría</th><th>Ref</th><th>Canal</th><th>Color</th><th>Cód. Pantone</th><th>Línea</th><th>Proveedor</th><th>Estado</th><th class=n>Und</th>${thCur}<th class=n>PVP IVA final</th><th>N° orden de compra</th><th>Fecha OC</th><th>Nuevo/Repos.</th></tr></thead><tbody>`;
+ let d=`<table><thead><tr><th>Ref</th><th>Color</th><th>Cód. Pantone</th><th>Marca</th><th>Año</th><th>COL</th><th>Paq</th><th>Categoría</th><th>Línea</th><th>Canal</th><th>Proveedor</th><th>Estado</th><th class=n>Und</th>${thCur}<th class=n>PVP IVA final</th><th>N° orden de compra</th><th>Fecha OC</th><th>Nuevo/Repos.</th></tr></thead><tbody>`;
  const pvpCel=r=>!r[I.pvp]?'<span class=dot>—</span>':r[I.pvpok]?`<span class="pvok" title="PVP confirmado">$ ${fmt(r[I.pvp])}</span>`:`<span class="pvno" title="PVP sin confirmar: puede cambiar">$ ${fmt(r[I.pvp])}</span>`;
- DR.slice(0,L).forEach(r=>{const e=r[I.est];d+=`<tr class="${e=="CANCELADO"?"canc":""}"><td>${esc(r[I.marca])}</td><td>${esc(r[I.anio])}</td><td>${esc(r[I.col])}</td><td>${esc(r[I.paq])}</td><td>${esc(r[I.cat])}</td><td><b>${esc(r[I.ref])}</b></td><td>${esc(r[I.can])}</td><td>${esc(r[I.color])}</td><td class=m>${esc(r[I.pant])}</td><td>${esc(r[I.lin])}</td><td>${esc(r[I.prov])}</td><td><span class="badge b-${esc(e.split(/[ /]/)[0])}">${esc(e)}</span></td><td class=n><b>${fmt(r[I.u])}</b></td>${tdCur(r)}<td class=n>${pvpCel(r)}</td><td>${esc(r[I.oc])||'<span class=dot>—</span>'}</td><td>${esc(r[I.foc])||'<span class=dot>—</span>'}</td><td>${esc(r[I.nra])}</td></tr>`;});
- $("tDet").innerHTML=d+"</tbody></table>";fijarColumnas($("tDet"),6);$("dn").textContent=R.length>L?`${L} de ${R.length} líneas`:`${R.length} líneas`;
+ DR.slice(0,L).forEach(r=>{const e=r[I.est];d+=`<tr class="${e=="CANCELADO"?"canc":""}"><td><b>${esc(r[I.ref])}</b></td><td>${esc(r[I.color])}</td><td class=m>${esc(r[I.pant])}</td><td>${esc(r[I.marca])}</td><td>${esc(r[I.anio])}</td><td>${esc(r[I.col])}</td><td>${esc(r[I.paq])}</td><td>${esc(r[I.cat])}</td><td>${esc(r[I.lin])}</td><td>${esc(r[I.can])}</td><td>${esc(r[I.prov])}</td><td><span class="badge b-${esc(e.split(/[ /]/)[0])}">${esc(e)}</span></td><td class=n><b>${fmt(r[I.u])}</b></td>${tdCur(r)}<td class=n>${pvpCel(r)}</td><td>${esc(r[I.oc])||'<span class=dot>—</span>'}</td><td>${esc(r[I.foc])||'<span class=dot>—</span>'}</td><td>${esc(r[I.nra])}</td></tr>`;});
+ $("tDet").innerHTML=d+"</tbody></table>";fijarColumnas($("tDet"),3);$("dn").textContent=R.length>L?`${L} de ${R.length} líneas`:`${R.length} líneas`;
 }
+/* Orden de las filas del Detalle de referencias (y del Excel): Marca, Año, COL, Paq ascendente
+   (1-1, 1-2, 2-1…), Categoría, Ref y Canal. Las columnas no cambian de lugar. */
+const cmpTxt=(a,b)=>String(a).localeCompare(String(b),"es",{numeric:true});
+function ordenDetalle(R){return [...R].sort((a,b)=>cmpTxt(a[I.marca],b[I.marca])||(+a[I.anio])-(+b[I.anio])||
+ cmpTxt(a[I.col],b[I.col])||paqKey(a[I.paq])-paqKey(b[I.paq])||cmpTxt(a[I.paq],b[I.paq])||
+ cmpTxt(a[I.cat],b[I.cat])||cmpTxt(a[I.ref],b[I.ref])||cmpTxt(a[I.can],b[I.can]));}
 /* Curvas: etiquetas de talla de las parrillas presentes en R (sin repetir) y unidades de una fila por etiqueta */
 function tallasDe(R){const out=[];[...new Set(R.map(r=>r[I.marca]+"|"+r[I.anio]))].forEach(k=>(S.TAL[k]||[]).forEach(t=>{if(!out.includes(t))out.push(t);}));return out;}
 const curva=(r,t)=>{const L=S.TAL[r[I.marca]+"|"+r[I.anio]]||[];const i=L.indexOf(t);return i<0?0:(+(r[I.cur]||[])[i]||0);};
@@ -595,9 +600,9 @@ const sumaCurva=r=>(r[I.cur]||[]).reduce((s,v)=>s+(+v||0),0);
 $("bCur").onclick=()=>{S.verCurvas=!S.verCurvas;$("bCur").classList.toggle("on",S.verCurvas);render();
  if(S.verCurvas){const th=$("tDet").querySelector("th.cvz");if(th)$("tDet").scrollLeft=Math.max(0,th.offsetLeft-420);}};
 $("bXls").onclick=()=>{const RR=rows();const TL=tallasDe(RR);
- /* mismo orden de columnas que la tabla Detalle de referencias */
- const R=RR.map(r=>[r[I.marca],r[I.anio],r[I.col],r[I.paq],r[I.cat],r[I.ref],r[I.can],r[I.color],r[I.pant],r[I.lin],r[I.prov],r[I.est],r[I.u],...TL.map(t=>curva(r,t)||""),sumaCurva(r)||"",r[I.pvp]||"",r[I.pvp]?(r[I.pvpok]?"Sí":"No"):"",r[I.oc],r[I.foc],r[I.nra]]);
- const ws=XLSX.utils.aoa_to_sheet([["Marca","Año","COL","Paquete","Categoría","Referencia","Canal","Color","Cód. Pantone","Línea","Proveedor","Estado","Unidades",...TL,"Total curva","PVP IVA final","PVP confirmado","N° orden de compra","Fecha OC","Nuevo/Reposición"],...R]);
+ /* filas en el mismo orden que la tabla Detalle de referencias */
+ const R=ordenDetalle(RR).map(r=>[r[I.marca],r[I.anio],r[I.col],r[I.paq],r[I.prov],r[I.cat],r[I.lin],r[I.can],r[I.ref],r[I.color],r[I.pant],r[I.nra],r[I.est],r[I.u],...TL.map(t=>curva(r,t)||""),sumaCurva(r)||"",r[I.pvp]||"",r[I.pvp]?(r[I.pvpok]?"Sí":"No"):"",r[I.oc],r[I.foc]]);
+ const ws=XLSX.utils.aoa_to_sheet([["Marca","Año","COL","Paquete","Proveedor","Categoría","Línea","Canal","Referencia","Color","Cód. Pantone","Nuevo/Reposición","Estado","Unidades",...TL,"Total curva","PVP IVA final","PVP confirmado","N° orden de compra","Fecha OC"],...R]);
  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Parrilla");XLSX.writeFile(wb,"Parrilla_filtrada_"+new Date().toISOString().slice(0,10)+".xlsx");};
 
 /* ══ TAB 2: PARRILLA VS MES INGRESO ═════════════════════ */
