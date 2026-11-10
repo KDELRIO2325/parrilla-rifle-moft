@@ -267,6 +267,7 @@ th.cvz{white-space:normal;min-width:66px;line-height:1.25;background:#ddeff1!imp
   <div class="kpis" id="kpis2"></div>
   <div class="card"><div class="ch"><h3>Unidades parrilla por mes (presupuesto de venta)</h3><span class="tag" id="vTag"></span></div><div class="chart" id="chartV"></div></div>
   <div class="card" style="margin-top:16px"><div class="ch"><h3>Unidades por mes de ingreso</h3><span class="tag" id="gTag"></span></div><div class="chart" id="chartG"></div></div>
+  <div class="card" style="margin-top:16px"><div class="ch"><h3>Detalle por proveedor · presupuesto de venta por mes</h3><span class="tag" id="pmTag"></span></div><div class="tw" style="max-height:560px" id="tProvMes"></div></div>
   <div class="card" style="margin-top:16px"><div class="ch"><h3>Detalle mensual</h3></div><div class="tw" id="tIng"></div></div>
  </section>
 
@@ -581,10 +582,11 @@ function renderInforme(){
  const tdCur=r=>{if(!S.verCurvas)return"";const s=sumaCurva(r);
   return TL.map(t=>{const v=curva(r,t);return`<td class="n cvz">${v?fmt(v):'<span class=dot>—</span>'}</td>`;}).join("")+
    `<td class="n cvz">${!s?'<span class=dot>—</span>':s==r[I.u]?fmt(s):`<span class="neg" title="La curva suma ${fmt(s)} y la referencia tiene ${fmt(r[I.u])} und">⚠ ${fmt(s)}</span>`}</td>`;};
- let d=`<table><thead><tr><th>Ref</th><th>Color</th><th>Cód. Pantone</th><th>Marca</th><th>Año</th><th>COL</th><th>Paq</th><th>Categoría</th><th>Línea</th><th>Canal</th><th>Proveedor</th><th>Estado</th><th class=n>Und</th>${thCur}<th class=n>PVP IVA final</th><th>N° orden de compra</th><th>Fecha OC</th><th>Nuevo/Repos.</th></tr></thead><tbody>`;
+ /* orden: Marca, Año, COL, Paq, Categoría, Ref (fijas hasta Ref), Canal y luego el resto */
+ let d=`<table><thead><tr><th>Marca</th><th>Año</th><th>COL</th><th>Paq</th><th>Categoría</th><th>Ref</th><th>Canal</th><th>Color</th><th>Cód. Pantone</th><th>Línea</th><th>Proveedor</th><th>Estado</th><th class=n>Und</th>${thCur}<th class=n>PVP IVA final</th><th>N° orden de compra</th><th>Fecha OC</th><th>Nuevo/Repos.</th></tr></thead><tbody>`;
  const pvpCel=r=>!r[I.pvp]?'<span class=dot>—</span>':r[I.pvpok]?`<span class="pvok" title="PVP confirmado">$ ${fmt(r[I.pvp])}</span>`:`<span class="pvno" title="PVP sin confirmar: puede cambiar">$ ${fmt(r[I.pvp])}</span>`;
- DR.slice(0,L).forEach(r=>{const e=r[I.est];d+=`<tr class="${e=="CANCELADO"?"canc":""}"><td><b>${esc(r[I.ref])}</b></td><td>${esc(r[I.color])}</td><td class=m>${esc(r[I.pant])}</td><td>${esc(r[I.marca])}</td><td>${esc(r[I.anio])}</td><td>${esc(r[I.col])}</td><td>${esc(r[I.paq])}</td><td>${esc(r[I.cat])}</td><td>${esc(r[I.lin])}</td><td>${esc(r[I.can])}</td><td>${esc(r[I.prov])}</td><td><span class="badge b-${esc(e.split(/[ /]/)[0])}">${esc(e)}</span></td><td class=n><b>${fmt(r[I.u])}</b></td>${tdCur(r)}<td class=n>${pvpCel(r)}</td><td>${esc(r[I.oc])||'<span class=dot>—</span>'}</td><td>${esc(r[I.foc])||'<span class=dot>—</span>'}</td><td>${esc(r[I.nra])}</td></tr>`;});
- $("tDet").innerHTML=d+"</tbody></table>";fijarColumnas($("tDet"),3);$("dn").textContent=R.length>L?`${L} de ${R.length} líneas`:`${R.length} líneas`;
+ DR.slice(0,L).forEach(r=>{const e=r[I.est];d+=`<tr class="${e=="CANCELADO"?"canc":""}"><td>${esc(r[I.marca])}</td><td>${esc(r[I.anio])}</td><td>${esc(r[I.col])}</td><td>${esc(r[I.paq])}</td><td>${esc(r[I.cat])}</td><td><b>${esc(r[I.ref])}</b></td><td>${esc(r[I.can])}</td><td>${esc(r[I.color])}</td><td class=m>${esc(r[I.pant])}</td><td>${esc(r[I.lin])}</td><td>${esc(r[I.prov])}</td><td><span class="badge b-${esc(e.split(/[ /]/)[0])}">${esc(e)}</span></td><td class=n><b>${fmt(r[I.u])}</b></td>${tdCur(r)}<td class=n>${pvpCel(r)}</td><td>${esc(r[I.oc])||'<span class=dot>—</span>'}</td><td>${esc(r[I.foc])||'<span class=dot>—</span>'}</td><td>${esc(r[I.nra])}</td></tr>`;});
+ $("tDet").innerHTML=d+"</tbody></table>";fijarColumnas($("tDet"),6);$("dn").textContent=R.length>L?`${L} de ${R.length} líneas`:`${R.length} líneas`;
 }
 /* Curvas: etiquetas de talla de las parrillas presentes en R (sin repetir) y unidades de una fila por etiqueta */
 function tallasDe(R){const out=[];[...new Set(R.map(r=>r[I.marca]+"|"+r[I.anio]))].forEach(k=>(S.TAL[k]||[]).forEach(t=>{if(!out.includes(t))out.push(t);}));return out;}
@@ -593,8 +595,9 @@ const sumaCurva=r=>(r[I.cur]||[]).reduce((s,v)=>s+(+v||0),0);
 $("bCur").onclick=()=>{S.verCurvas=!S.verCurvas;$("bCur").classList.toggle("on",S.verCurvas);render();
  if(S.verCurvas){const th=$("tDet").querySelector("th.cvz");if(th)$("tDet").scrollLeft=Math.max(0,th.offsetLeft-420);}};
 $("bXls").onclick=()=>{const RR=rows();const TL=tallasDe(RR);
- const R=RR.map(r=>[r[I.marca],r[I.anio],r[I.col],r[I.paq],r[I.prov],r[I.cat],r[I.lin],r[I.can],r[I.ref],r[I.color],r[I.pant],r[I.nra],r[I.est],r[I.u],...TL.map(t=>curva(r,t)||""),sumaCurva(r)||"",r[I.pvp]||"",r[I.pvp]?(r[I.pvpok]?"Sí":"No"):"",r[I.oc],r[I.foc]]);
- const ws=XLSX.utils.aoa_to_sheet([["Marca","Año","COL","Paquete","Proveedor","Categoría","Línea","Canal","Referencia","Color","Cód. Pantone","Nuevo/Reposición","Estado","Unidades",...TL,"Total curva","PVP IVA final","PVP confirmado","N° orden de compra","Fecha OC"],...R]);
+ /* mismo orden de columnas que la tabla Detalle de referencias */
+ const R=RR.map(r=>[r[I.marca],r[I.anio],r[I.col],r[I.paq],r[I.cat],r[I.ref],r[I.can],r[I.color],r[I.pant],r[I.lin],r[I.prov],r[I.est],r[I.u],...TL.map(t=>curva(r,t)||""),sumaCurva(r)||"",r[I.pvp]||"",r[I.pvp]?(r[I.pvpok]?"Sí":"No"):"",r[I.oc],r[I.foc],r[I.nra]]);
+ const ws=XLSX.utils.aoa_to_sheet([["Marca","Año","COL","Paquete","Categoría","Referencia","Canal","Color","Cód. Pantone","Línea","Proveedor","Estado","Unidades",...TL,"Total curva","PVP IVA final","PVP confirmado","N° orden de compra","Fecha OC","Nuevo/Reposición"],...R]);
  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Parrilla");XLSX.writeFile(wb,"Parrilla_filtrada_"+new Date().toISOString().slice(0,10)+".xlsx");};
 
 /* ══ TAB 2: PARRILLA VS MES INGRESO ═════════════════════ */
@@ -604,7 +607,7 @@ $("bXls").onclick=()=>{const RR=rows();const TL=tallasDe(RR);
 function renderIngreso(){
  const R=rows();const yrs=OPT.anio.filter(v=>pass("anio",v));
  $("ingTitle").textContent="Parrilla vs mes de ingreso"+(yrs.length&&yrs.length<=3?" — "+yrs.join(" · "):"");$("ingPills").innerHTML=pillsHtml();
- if(!R.length){$("ingNote").innerHTML="";$("kpis2").innerHTML="";$("chartV").innerHTML=$("chartG").innerHTML=$("tIng").innerHTML='<div class="empty">Sin datos para los filtros seleccionados</div>';$("vTag").textContent=$("gTag").textContent="";return;}
+ if(!R.length){$("ingNote").innerHTML="";$("kpis2").innerHTML="";$("chartV").innerHTML=$("chartG").innerHTML=$("tIng").innerHTML=$("tProvMes").innerHTML='<div class="empty">Sin datos para los filtros seleccionados</div>';$("vTag").textContent=$("gTag").textContent=$("pmTag").textContent="";return;}
  const multiM=new Set(R.map(r=>r[I.marca])).size>1;
  const V=new Map(),G=new Map(),vP=new Map(),gP=new Map(),fe=new Map();let sinCal=0,antes=0;const sinCalS=new Set();
  const add=(M,k,u)=>M.set(k,(M.get(k)||0)+u);const addP=(M,k,e,u)=>{if(!M.has(k))M.set(k,new Map());add(M.get(k),e,u);};
@@ -635,7 +638,25 @@ function renderIngreso(){
  K.forEach(k=>{const v=V.get(k)||0,g=G.get(k)||0,df=g-v;h+=`<tr><td><b>${labL(k)}</b></td><td class=wrap>${lst(vP.get(k))}</td><td class=n>${fmt(v)}</td><td class=wrap>${lst(gP.get(k))}</td><td class=n><b>${fmt(g)}</b></td><td class="n ${df>0?"pos":df<0?"neg":""}">${df>0?"+":""}${fmt(df)}</td><td class=m>${[...(fe.get(k)||[])].sort().map(f=>esc(f.split("-").reverse().join("/"))).join(", ")||"—"}</td></tr>`;});
  h+=`<tr class=tot><td>Total</td><td></td><td class=n>${fmt(TV)}</td><td></td><td class=n>${fmt(TG)}</td><td></td><td></td></tr></tbody></table>`;
  $("tIng").innerHTML=h;
+ provMes(R,K,V,lab);
 }
+/* Detalle por proveedor × mes del presupuesto de venta, con promedio mensual y comparativo del año
+   anterior (mismas reglas que el Ranking de proveedores: un solo año de parrilla y mismas COL). */
+function provMes(R,K,V,lab){
+ const KV=K.filter(k=>(V.get(k)||0)>0);const nm=KV.length||1;
+ const pm=new Map();R.forEach(r=>{const c=calDe(r[I.marca],r[I.anio],r[I.paq]);if(!c)return;const kv=(+r[I.anio])*12+c.mes_venta-1;
+  let a=pm.get(r[I.prov]);if(!a){a={m:new Map(),t:0};pm.set(r[I.prov],a);}a.m.set(kv,(a.m.get(kv)||0)+r[I.u]);a.t+=r[I.u];});
+ const P=[...pm.entries()].sort((a,b)=>b[1].t-a[1].t);const T=P.reduce((s,p)=>s+p[1].t,0);
+ const AA=anioAnterior(R);const PP=AA.RP?new Map(group(AA.RP,"prov").map(g=>[g.v,g.u])):null;
+ const dash='<span class=dot>—</span>';
+ let h=`<table><thead><tr><th>#</th><th>Proveedor</th>${KV.map(k=>`<th class=n>${lab(k)}</th>`).join("")}<th class="n tc">Total und</th><th class=n>Prom./mes</th>${PP?`<th class="n cmpc">Und ${AA.Y-1}</th><th class="n cmpc">Var.</th>`:""}</tr></thead><tbody>`;
+ P.forEach(([v,a],i)=>{const pv=PP?PP.get(v)||0:0;
+  h+=`<tr class="${v=="SIN PROVEEDOR ASIGNADO"?"warn":""}"><td><span class=rk>${i+1}</span></td><td><b>${esc(v)}</b></td>${KV.map(k=>`<td class=n>${a.m.get(k)?fmt(a.m.get(k)):dash}</td>`).join("")}<td class="n tc"><b>${fmt(a.t)}</b></td><td class="n m">${fmt(a.t/nm)}</td>${PP?`<td class="n cmpc">${pv?fmt(pv):dash}</td><td class="n cmpc">${varHtml(a.t,pv)}</td>`:""}</tr>`;});
+ if(PP)[...PP.entries()].filter(([v])=>!pm.has(v)).sort((a,b)=>b[1]-a[1]).forEach(([v,pv])=>{
+  h+=`<tr class="m"><td></td><td><b>${esc(v)}</b> <span class="badge b-mut">solo en ${AA.Y-1}</span></td>${KV.map(()=>`<td class=n>${dash}</td>`).join("")}<td class="n tc">0</td><td class=n>${dash}</td><td class="n cmpc">${fmt(pv)}</td><td class="n cmpc"><span class="neg">▼ -100%</span></td></tr>`;});
+ h+=`<tr class=tot><td></td><td>Total</td>${KV.map(k=>`<td class=n>${fmt(V.get(k)||0)}</td>`).join("")}<td class="n tc">${fmt(T)}</td><td class=n>${fmt(T/nm)}</td>${PP?`<td class="n cmpc">${fmt(AA.TP)}</td><td class="n cmpc">${varHtml(T,AA.TP)}</td>`:""}</tr></tbody></table>`;
+ $("tProvMes").innerHTML=h;fijarColumnas($("tProvMes"),2);
+ $("pmTag").textContent=`${P.length} proveedores · ${KV.length} ${KV.length==1?"mes":"meses"} de venta`+(PP?` · vs parrilla ${AA.Y-1}${AA.nota}`:AA.Y?` · sin parrilla ${AA.Y-1} para comparar`:" · elige un solo año para comparar");}
 
 /* ══ RENDER / TABS ══════════════════════════════════════ */
 function render(){if(S.tab=="adm")return;renderSide();if(S.tab=="inf")renderInforme();else renderIngreso();}
