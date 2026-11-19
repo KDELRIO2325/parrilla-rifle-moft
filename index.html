@@ -456,9 +456,12 @@ function anioVigente(){const ys=[...new Set(S.D.map(r=>r[I.anio]))].sort();const
 function defaults(){const y=anioVigente();const ys=new Set(S.D.map(r=>r[I.anio]));const an=y?[y,String(+y+1)].filter(a=>ys.has(a)):[];
  const fuera=new Set(["Fragancias",...S.D.map(r=>r[I.cat]).filter(c=>/^tenis/i.test(c))]);
  return{marca:null,anio:an.length?{t:"in",s:new Set(an)}:null,cat:{t:"ex",s:fuera},est:{t:"ex",s:new Set(["CANCELADO"])}};}
-function reset(){DEF=defaults();DIMS.forEach(([k])=>F[k]=DEF[k]?{t:DEF[k].t,s:new Set(DEF[k].s)}:null);S.busq={};}
+function reset(){DEF=defaults();DIMS.forEach(([k])=>F[k]=DEF[k]?{t:DEF[k].t,s:new Set(DEF[k].s)}:null);S.busq={};S.base={};}
 function rowsBase(skip){return S.D.filter(r=>(skip=="marca"||pass("marca",r[I.marca]))&&(skip=="anio"||pass("anio",r[I.anio])));}
-function calcOpt(){const base=rowsBase();DIMS.forEach(([k])=>{const src=k=="marca"||k=="anio"?S.D:base;OPT[k]=sortVals(k,[...new Set(src.map(r=>r[I[k]]))]);});}
+/* Opciones de cada filtro: marca y año muestran todo; el resto, lo de la marca/año elegidos.
+   Cód. Pantone además solo muestra los pantone de las referencias seleccionadas. */
+function calcOpt(){const base=rowsBase();const conRef=base.filter(r=>pass("ref",r[I.ref]));
+ DIMS.forEach(([k])=>{const src=k=="marca"||k=="anio"?S.D:k=="pant"?conRef:base;OPT[k]=sortVals(k,[...new Set(src.map(r=>r[I[k]]))]);});}
 function rows(){const q=REF.trim().toUpperCase();return S.D.filter(r=>DIMS.every(([k])=>pass(k,r[I[k]]))&&(!q||r[I.ref].includes(q)));}
 /* Pastillas de marca / año / actualización, comunes a las dos pestañas de informe */
 function pillsHtml(){const on=k=>OPT[k].filter(v=>pass(k,v));const mk=on("marca"),yr=on("anio");
@@ -471,27 +474,48 @@ function buildFilters(){
  const html=([k,lab,ic])=>`<div class="f" id="f_${k}"><button class="dd" type="button">${svg(ic)}<span class="t"><small>${lab}</small><em id="v_${k}"></em></span><span class="car">▾</span></button><div class="pan" id="p_${k}"></div></div>`;
  $("filters").innerHTML=DIMS.filter(d=>d[3]!=2).map(html).join("");$("filters2").innerHTML=DIMS.filter(d=>d[3]==2).map(html).join("");
  DIMS.forEach(([k])=>{const f=$("f_"+k);f.querySelector(".dd").onclick=()=>{const o=f.classList.contains("open");document.querySelectorAll(".f.open").forEach(x=>x.classList.remove("open"));if(!o){fillPan(k);f.classList.add("open");const s=f.querySelector("input.s");if(s)s.focus();}};});
- $("clr").onclick=()=>{DIMS.forEach(([k])=>F[k]=null);S.busq={};render();};
+ $("clr").onclick=()=>{DIMS.forEach(([k])=>F[k]=null);S.busq={};S.base={};render();};
  $("bAll").onclick=$("clr").onclick;$("bReset").onclick=()=>{reset();render();};}
-/* Lista de un filtro. El buscador FILTRA de inmediato: lo que se escribe deja seleccionados los valores
-   que lo contienen; varios a la vez separados por coma (ej. "acrilan, prenco"). Borrar el texto = todos.
+/* Lista de un filtro, con buscador tipo filtro de Excel:
+   - Al escribir se aplica de inmediato: quedan seleccionados los valores que contienen el texto
+     (varios a la vez separados por coma, ej. "acrilan, prenco").
+   - "Agregar selección actual al filtro" marcado: lo buscado se SUMA a lo que ya estaba seleccionado.
+   - Enter: confirma la búsqueda y limpia el buscador (la selección se conserva) para buscar otra.
+   - Borrar el texto sin dar Enter: vuelve a la selección que había antes de escribir.
    Las casillas suman o quitan valores sin perder el resto de la selección. */
 const MAXLIS=300;
 const terminos=t=>t.toLowerCase().split(",").map(x=>x.trim()).filter(Boolean);
 const coincide=(k,v,ts)=>{const x=etqF(k,v).toLowerCase();return ts.some(t=>x.includes(t));};
-function fillPan(k){const p=$("p_"+k),vals=OPT[k]||[];S.busq=S.busq||{};
+const copiaF=f=>f?{t:f.t,s:new Set(f.s)}:null;
+function aplicarBusqueda(k,txt){const ts=terminos(txt),vals=OPT[k]||[];S.busq[k]=txt;
+ if(!(k in S.base))S.base[k]=copiaF(F[k]);                /* selección antes de empezar a escribir */
+ if(!ts.length){F[k]=copiaF(S.base[k]);delete S.base[k];return;}
+ const sel=new Set(vals.filter(v=>coincide(k,v,ts)));
+ if(S.agregar[k]&&S.base[k])vals.forEach(v=>{const b=S.base[k];if(b.t=="in"?b.s.has(v):!b.s.has(v))sel.add(v);});
+ F[k]={t:"in",s:sel};}
+function fillPan(k){const p=$("p_"+k),vals=OPT[k]||[];S.busq=S.busq||{};S.base=S.base||{};S.agregar=S.agregar||{};
  if(!p.querySelector(".lst")){
-  p.innerHTML=`${vals.length>8||k=="ref"||k=="pant"?`<input class="s" placeholder="${k=="ref"?"Ej. 200G000, 131I103":k=="prov"?"Ej. acrilan, prenco":"Buscar… (varios con coma)"}">`:""}<div class="ops"><a data-a="all">Seleccionar todo</a><a data-a="none">Ninguno</a></div><div class="lst"></div>`;
-  p.querySelectorAll(".ops a").forEach(a=>a.onclick=()=>{F[k]=a.dataset.a=="all"?null:{t:"in",s:new Set()};S.busq[k]="";const s=p.querySelector("input.s");if(s)s.value="";render();});
+  const conBusq=vals.length>8||k=="ref"||k=="pant";
+  p.innerHTML=`${conBusq?`<input class="s" placeholder="${k=="ref"?"Ej. 200G000, 131I103":k=="prov"?"Ej. acrilan, prenco":"Buscar… (varios con coma)"}">
+   <label class="it agr"><input type="checkbox" class="agr" ${S.agregar[k]?"checked":""}><span>Agregar selección actual al filtro</span></label>
+   <div class="snote" style="padding:0 6px 6px">Enter = confirmar y buscar otra</div>`:""}<div class="ops"><a data-a="all">Seleccionar todo</a><a data-a="none">Ninguno</a></div><div class="lst"></div>`;
+  p.querySelectorAll(".ops a").forEach(a=>a.onclick=()=>{F[k]=a.dataset.a=="all"?null:{t:"in",s:new Set()};S.busq[k]="";delete S.base[k];const s=p.querySelector("input.s");if(s)s.value="";render();});
   const s=p.querySelector("input.s");
-  if(s){s.value=S.busq[k]||"";let tmr;s.oninput=()=>{clearTimeout(tmr);tmr=setTimeout(()=>{S.busq[k]=s.value;const ts=terminos(s.value);
-   F[k]=ts.length?{t:"in",s:new Set((OPT[k]||[]).filter(v=>coincide(k,v,ts)))}:null;render();},300);};}}
- const ts=terminos(S.busq[k]||"");const lista=ts.length?vals.filter(v=>coincide(k,v,ts)):vals;
+  if(s){s.value=S.busq[k]||"";let tmr;
+   p.querySelector("input.agr").onchange=e=>{S.agregar[k]=e.target.checked;if(s.value.trim()){aplicarBusqueda(k,s.value);render();}s.focus();};
+   s.oninput=()=>{clearTimeout(tmr);tmr=setTimeout(()=>{aplicarBusqueda(k,s.value);render();},300);};
+   s.onkeydown=e=>{if(e.key!="Enter")return;e.preventDefault();clearTimeout(tmr);
+    if(s.value.trim())aplicarBusqueda(k,s.value);S.busq[k]="";delete S.base[k];s.value="";render();s.focus();};}}
+ const ts=terminos(S.busq[k]||"");let lista=ts.length?vals.filter(v=>coincide(k,v,ts)):vals;
+ /* con una selección puntual (ej. 2 referencias), las elegidas van de primeras en la lista */
+ if(!ts.length&&F[k]&&F[k].t=="in")lista=[...lista.filter(v=>F[k].s.has(v)),...lista.filter(v=>!F[k].s.has(v))];
  const lst=p.querySelector(".lst");
  lst.innerHTML=lista.slice(0,MAXLIS).map(v=>`<label class="it"><input type="checkbox" value="${esc(v)}" ${pass(k,v)?"checked":""}><span>${esc(etqF(k,v))}</span></label>`).join("")+
   (lista.length>MAXLIS?`<div class="snote" style="padding:6px">${fmt(lista.length-MAXLIS)} más… escribe para buscar</div>`:"")+(!lista.length?`<div class="snote" style="padding:6px">Sin coincidencias</div>`:"");
  lst.querySelectorAll("input[type=checkbox]").forEach(c=>c.onchange=()=>{const on=new Set(vals.filter(v=>pass(k,v)));c.checked?on.add(c.value):on.delete(c.value);
-  const off=vals.filter(v=>!on.has(v));F[k]=!off.length?null:off.length<on.size?{t:"ex",s:new Set(off)}:{t:"in",s:on};render();});}
+  const off=vals.filter(v=>!on.has(v));F[k]=!off.length?null:off.length<on.size?{t:"ex",s:new Set(off)}:{t:"in",s:on};
+  if(S.base&&k in S.base)S.base[k]=copiaF(F[k]);   /* marcar/desmarcar durante una búsqueda también se conserva */
+  render();});}
 function renderSide(){
  calcOpt();
  DIMS.forEach(([k])=>{const vals=OPT[k],n=vals.length,on=vals.filter(v=>pass(k,v));
