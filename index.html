@@ -217,7 +217,7 @@ th.cvz{white-space:normal;min-width:66px;line-height:1.25;background:#ddeff1!imp
  <div class="stitle">Filtros <a id="clr">Limpiar</a></div>
  <div id="filters"></div>
  <div class="stitle">Referencia</div>
- <div class="refwrap"><input class="refin" id="fref" placeholder="Buscar referencia…"></div>
+ <div id="filters2"></div>
  <div class="sbtns"><button id="bReset">Restablecer</button><button class="pri" id="bAll">Ver todo</button></div>
 </aside>
 <main>
@@ -441,7 +441,9 @@ const IC={box:'<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><p
  cal:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',star:'<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
  coll:'<rect x="3" y="3" width="18" height="6" rx="1.5"/><rect x="3" y="12" width="18" height="9" rx="1.5"/>',up:'<path d="M12 19V5M5 12l7-7 7 7"/>',dn:'<path d="M12 5v14M5 12l7 7 7-7"/>'};
 const svg=(k,extra="")=>`<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" ${extra}>${IC[k]}</svg>`;
-const DIMS=[["marca","Marca","star"],["anio","Año parrilla","cal"],["col","Colección (COL)","coll"],["paq","Paquete","layers"],["prov","Proveedor","fac"],["cat","Categoría","tag"],["lin","Línea","line"],["can","Canal","store"],["nra","Nuevo / Reposición","rep"],["est","Estado","flag"]];
+const DIMS=[["marca","Marca","star"],["anio","Año parrilla","cal"],["col","Colección (COL)","coll"],["paq","Paquete","layers"],["prov","Proveedor","fac"],["cat","Categoría","tag"],["lin","Línea","line"],["can","Canal","store"],["nra","Nuevo / Reposición","rep"],["est","Estado","flag"],
+ /* sección "Referencia" del panel: */["ref","Referencia","tag",2],["pant","Cód. Pantone","pie",2]];
+const etqF=(k,v)=>k=="pant"&&!v?"(sin código)":v;   /* texto visible de un valor de filtro */
 /* F[k]: null = todos · {t:"in",s:Set} solo esos · {t:"ex",s:Set} todos menos esos */
 let F={},REF="",OPT={},DEF={};
 const pass=(k,v)=>{const f=F[k];return !f||(f.t=="in"?f.s.has(v):!f.s.has(v));};
@@ -449,10 +451,12 @@ const active=k=>!!F[k]&&(OPT[k]||[]).some(v=>!pass(k,v));
 const isSel=(k,v)=>F[k]&&F[k].t=="in"&&F[k].s.size<=(OPT[k]||[]).length/2&&F[k].s.has(v);
 const fKey=f=>!f?"":f.t+":"+[...f.s].sort().join("|");
 function anioVigente(){const ys=[...new Set(S.D.map(r=>r[I.anio]))].sort();const y=String(new Date().getFullYear());return ys.includes(y)?y:ys.filter(x=>x<=y).pop()||ys[0];}
-/* Vista inicial: año vigente, sin Fragancias, sin calzado (categorías Tenis…) y sin CANCELADO */
-function defaults(){const y=anioVigente();const fuera=new Set(["Fragancias",...S.D.map(r=>r[I.cat]).filter(c=>/^tenis/i.test(c))]);
- return{marca:null,anio:y?{t:"in",s:new Set([y])}:null,cat:{t:"ex",s:fuera},est:{t:"ex",s:new Set(["CANCELADO"])}};}
-function reset(){DEF=defaults();DIMS.forEach(([k])=>F[k]=DEF[k]?{t:DEF[k].t,s:new Set(DEF[k].s)}:null);REF="";$("fref").value="";}
+/* Vista inicial (y botón Restablecer): parrilla vigente y la del año siguiente (2026 y 2027),
+   sin Fragancias, sin calzado (categorías Tenis…) y sin CANCELADO */
+function defaults(){const y=anioVigente();const ys=new Set(S.D.map(r=>r[I.anio]));const an=y?[y,String(+y+1)].filter(a=>ys.has(a)):[];
+ const fuera=new Set(["Fragancias",...S.D.map(r=>r[I.cat]).filter(c=>/^tenis/i.test(c))]);
+ return{marca:null,anio:an.length?{t:"in",s:new Set(an)}:null,cat:{t:"ex",s:fuera},est:{t:"ex",s:new Set(["CANCELADO"])}};}
+function reset(){DEF=defaults();DIMS.forEach(([k])=>F[k]=DEF[k]?{t:DEF[k].t,s:new Set(DEF[k].s)}:null);S.busq={};}
 function rowsBase(skip){return S.D.filter(r=>(skip=="marca"||pass("marca",r[I.marca]))&&(skip=="anio"||pass("anio",r[I.anio])));}
 function calcOpt(){const base=rowsBase();DIMS.forEach(([k])=>{const src=k=="marca"||k=="anio"?S.D:base;OPT[k]=sortVals(k,[...new Set(src.map(r=>r[I[k]]))]);});}
 function rows(){const q=REF.trim().toUpperCase();return S.D.filter(r=>DIMS.every(([k])=>pass(k,r[I[k]]))&&(!q||r[I.ref].includes(q)));}
@@ -464,30 +468,42 @@ function toggle(k,v,add){const cur=F[k];
  if(add){const s=new Set(cur&&cur.t=="in"?cur.s:[]);s.has(v)?s.delete(v):s.add(v);F[k]=s.size?{t:"in",s}:null;}
  else F[k]=(cur&&cur.t=="in"&&cur.s.size==1&&cur.s.has(v))?null:{t:"in",s:new Set([v])};render();}
 function buildFilters(){
- $("filters").innerHTML=DIMS.map(([k,lab,ic])=>`<div class="f" id="f_${k}"><button class="dd" type="button">${svg(ic)}<span class="t"><small>${lab}</small><em id="v_${k}"></em></span><span class="car">▾</span></button><div class="pan" id="p_${k}"></div></div>`).join("");
- DIMS.forEach(([k])=>{const f=$("f_"+k);f.querySelector(".dd").onclick=()=>{const o=f.classList.contains("open");document.querySelectorAll(".f.open").forEach(x=>x.classList.remove("open"));if(!o){fillPan(k);f.classList.add("open");}};});
- $("fref").oninput=e=>{REF=e.target.value;render();};
- $("clr").onclick=()=>{DIMS.forEach(([k])=>F[k]=null);REF="";$("fref").value="";render();};
+ const html=([k,lab,ic])=>`<div class="f" id="f_${k}"><button class="dd" type="button">${svg(ic)}<span class="t"><small>${lab}</small><em id="v_${k}"></em></span><span class="car">▾</span></button><div class="pan" id="p_${k}"></div></div>`;
+ $("filters").innerHTML=DIMS.filter(d=>d[3]!=2).map(html).join("");$("filters2").innerHTML=DIMS.filter(d=>d[3]==2).map(html).join("");
+ DIMS.forEach(([k])=>{const f=$("f_"+k);f.querySelector(".dd").onclick=()=>{const o=f.classList.contains("open");document.querySelectorAll(".f.open").forEach(x=>x.classList.remove("open"));if(!o){fillPan(k);f.classList.add("open");const s=f.querySelector("input.s");if(s)s.focus();}};});
+ $("clr").onclick=()=>{DIMS.forEach(([k])=>F[k]=null);S.busq={};render();};
  $("bAll").onclick=$("clr").onclick;$("bReset").onclick=()=>{reset();render();};}
-function fillPan(k){const p=$("p_"+k),vals=OPT[k]||[];
- p.innerHTML=`${vals.length>8?'<input class="s" placeholder="Buscar…">':''}<div class="ops"><a data-a="all">Seleccionar todo</a><a data-a="none">Ninguno</a></div>`+
-  vals.map(v=>`<label class="it"><input type="checkbox" value="${esc(v)}" ${pass(k,v)?"checked":""}><span>${esc(v)}</span></label>`).join("");
- p.querySelectorAll("input[type=checkbox]").forEach(c=>c.onchange=()=>{const all=[...p.querySelectorAll("input[type=checkbox]")];const on=new Set(all.filter(x=>x.checked).map(x=>x.value)),off=new Set(all.filter(x=>!x.checked).map(x=>x.value));
-  F[k]=!off.size?null:off.size<on.size?{t:"ex",s:off}:{t:"in",s:on};render();});
- p.querySelectorAll(".ops a").forEach(a=>a.onclick=()=>{F[k]=a.dataset.a=="all"?null:{t:"in",s:new Set()};fillPan(k);render();});
- const s=p.querySelector("input.s");if(s)s.oninput=()=>p.querySelectorAll("label.it").forEach(l=>l.style.display=l.textContent.toLowerCase().includes(s.value.toLowerCase())?"":"none");}
+/* Lista de un filtro. El buscador FILTRA de inmediato: lo que se escribe deja seleccionados los valores
+   que lo contienen; varios a la vez separados por coma (ej. "acrilan, prenco"). Borrar el texto = todos.
+   Las casillas suman o quitan valores sin perder el resto de la selección. */
+const MAXLIS=300;
+const terminos=t=>t.toLowerCase().split(",").map(x=>x.trim()).filter(Boolean);
+const coincide=(k,v,ts)=>{const x=etqF(k,v).toLowerCase();return ts.some(t=>x.includes(t));};
+function fillPan(k){const p=$("p_"+k),vals=OPT[k]||[];S.busq=S.busq||{};
+ if(!p.querySelector(".lst")){
+  p.innerHTML=`${vals.length>8||k=="ref"||k=="pant"?`<input class="s" placeholder="${k=="ref"?"Ej. 200G000, 131I103":k=="prov"?"Ej. acrilan, prenco":"Buscar… (varios con coma)"}">`:""}<div class="ops"><a data-a="all">Seleccionar todo</a><a data-a="none">Ninguno</a></div><div class="lst"></div>`;
+  p.querySelectorAll(".ops a").forEach(a=>a.onclick=()=>{F[k]=a.dataset.a=="all"?null:{t:"in",s:new Set()};S.busq[k]="";const s=p.querySelector("input.s");if(s)s.value="";render();});
+  const s=p.querySelector("input.s");
+  if(s){s.value=S.busq[k]||"";let tmr;s.oninput=()=>{clearTimeout(tmr);tmr=setTimeout(()=>{S.busq[k]=s.value;const ts=terminos(s.value);
+   F[k]=ts.length?{t:"in",s:new Set((OPT[k]||[]).filter(v=>coincide(k,v,ts)))}:null;render();},300);};}}
+ const ts=terminos(S.busq[k]||"");const lista=ts.length?vals.filter(v=>coincide(k,v,ts)):vals;
+ const lst=p.querySelector(".lst");
+ lst.innerHTML=lista.slice(0,MAXLIS).map(v=>`<label class="it"><input type="checkbox" value="${esc(v)}" ${pass(k,v)?"checked":""}><span>${esc(etqF(k,v))}</span></label>`).join("")+
+  (lista.length>MAXLIS?`<div class="snote" style="padding:6px">${fmt(lista.length-MAXLIS)} más… escribe para buscar</div>`:"")+(!lista.length?`<div class="snote" style="padding:6px">Sin coincidencias</div>`:"");
+ lst.querySelectorAll("input[type=checkbox]").forEach(c=>c.onchange=()=>{const on=new Set(vals.filter(v=>pass(k,v)));c.checked?on.add(c.value):on.delete(c.value);
+  const off=vals.filter(v=>!on.has(v));F[k]=!off.length?null:off.length<on.size?{t:"ex",s:new Set(off)}:{t:"in",s:on};render();});}
 function renderSide(){
  calcOpt();
  DIMS.forEach(([k])=>{const vals=OPT[k],n=vals.length,on=vals.filter(v=>pass(k,v));
-  $("v_"+k).textContent=on.length==n?"Todas":on.length==0?"Ninguna":on.length==1?on[0]:on.length<=n/2?`${on.length} seleccionados`:`Todas menos ${n-on.length}`;
+  $("v_"+k).textContent=on.length==n?"Todas":on.length==0?"Ninguna":on.length==1?etqF(k,on[0]):on.length<=n/2?`${on.length} seleccionados`:`Todas menos ${n-on.length}`;
   $("f_"+k).classList.toggle("act",active(k));});
  /* Chips: solo filtros distintos a la vista por defecto (los de defecto no se muestran) */
  let ch="";DIMS.forEach(([k,lab])=>{if(fKey(F[k])==fKey(DEF[k]))return;if(!active(k))return;const vals=OPT[k],on=vals.filter(v=>pass(k,v)),ex=vals.filter(v=>!pass(k,v));
-  const txt=on.length<=ex.length?on.join(", ")||"ninguno":"sin "+ex.join(", ");ch+=`<span class=chip data-c="${k}"><b>${lab}:</b> ${esc(txt.length>90?txt.slice(0,90)+"…":txt)}<i>✕</i></span>`;});
- if(REF.trim())ch+=`<span class=chip data-c="ref"><b>Ref:</b> ${esc(REF)}<i>✕</i></span>`;
+  const txt=on.length<=ex.length?on.map(v=>etqF(k,v)).join(", ")||"ninguno":"sin "+ex.map(v=>etqF(k,v)).join(", ");ch+=`<span class=chip data-c="${k}"><b>${lab}:</b> ${esc(txt.length>90?txt.slice(0,90)+"…":txt)}<i>✕</i></span>`;});
  const box=S.tab=="ing"?$("chips2"):$("chips");$("chips").innerHTML="";$("chips2").innerHTML="";box.innerHTML=ch;
- box.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{const k=c.dataset.c;if(k=="ref"){REF="";$("fref").value="";}else F[k]=DEF[k]?{t:DEF[k].t,s:new Set(DEF[k].s)}:null;render();});
- const op=document.querySelector(".f.open");if(op){const k=op.id.slice(2);const sc=$("p_"+k);const st=sc.scrollTop;const sv=(sc.querySelector("input.s")||{}).value;fillPan(k);sc.scrollTop=st;if(sv){const si=sc.querySelector("input.s");si.value=sv;si.oninput();}}
+ box.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{const k=c.dataset.c;F[k]=DEF[k]?{t:DEF[k].t,s:new Set(DEF[k].s)}:null;if(S.busq)S.busq[k]="";const s=$("p_"+k).querySelector("input.s");if(s)s.value="";render();});
+ /* listas cerradas se rehacen al abrirlas; la abierta solo refresca sus casillas (el buscador conserva el foco) */
+ DIMS.forEach(([k])=>{const p=$("p_"+k);if(!$("f_"+k).classList.contains("open")){if(!(S.busq&&S.busq[k]))p.innerHTML="";}else{const st=p.scrollTop;fillPan(k);p.scrollTop=st;}});
 }
 function group(R,k,keyFn){const m=new Map();R.forEach(r=>{const v=keyFn?keyFn(r):r[I[k]];let g=m.get(v);if(!g){g={v,u:0,refs:new Set(),n:0};m.set(v,g);}g.u+=r[I.u];g.refs.add(r[I.ref]);g.n++;});return [...m.values()].sort((a,b)=>b.u-a.u||b.n-a.n);}
 /* Carga por categoría + comparativo con la parrilla del año anterior (mismos filtros, año −1).
